@@ -2228,7 +2228,8 @@ const screens = {
 };
 
 // --- INITIALISATION AU CHARGEMENT ---
-window.addEventListener('DOMContentLoaded', () => {
+function initGame() {
+  console.log("🎮 Initialisation de FontKahoot...");
   setupNavigation();
   setupFirebaseModal();
   setupLogin();
@@ -2236,15 +2237,25 @@ window.addEventListener('DOMContentLoaded', () => {
   setupPlayer();
   setupPresentation();
   updateStatusBadges();
-  
-  // Précharger quelques polices courantes
   ['Roboto', 'Montserrat', 'Bangers', 'Creepster', 'Playfair Display', 'Press Start 2P'].forEach(f => window.loadGoogleFont(f));
-});
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', initGame);
+} else {
+  initGame();
+}
 
 function showScreen(screenName) {
-  Object.keys(screens).forEach(key => {
-    if (screens[key]) {
-      screens[key].classList.toggle('active', key === screenName);
+  const scr = {
+    login: document.getElementById('screen-login'),
+    admin: document.getElementById('screen-admin'),
+    presentation: document.getElementById('screen-presentation'),
+    player: document.getElementById('screen-player')
+  };
+  Object.keys(scr).forEach(key => {
+    if (scr[key]) {
+      scr[key].classList.toggle('active', key === screenName);
     }
   });
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2306,57 +2317,28 @@ function cleanupListeners() {
 function setupFirebaseModal() {
   const modal = document.getElementById('modal-firebase');
   const btnClose = document.getElementById('btn-close-firebase-modal');
-  const form = document.getElementById('form-firebase-config');
-  const btnClear = document.getElementById('btn-clear-firebase-config');
+  const btnSave = document.getElementById('btn-save-rtdb');
+  const btnClear = document.getElementById('btn-clear-rtdb');
+  const inputUrl = document.getElementById('input-rtdb-url');
 
-  const existingConfig = window.gameService.getFirebaseConfig();
-  if (existingConfig) {
-    document.getElementById('fb-apiKey').value = existingConfig.apiKey || '';
-    document.getElementById('fb-authDomain').value = existingConfig.authDomain || '';
-    document.getElementById('fb-projectId').value = existingConfig.projectId || '';
-    document.getElementById('fb-storageBucket').value = existingConfig.storageBucket || '';
-    document.getElementById('fb-messagingSenderId').value = existingConfig.messagingSenderId || '';
-    document.getElementById('fb-appId').value = existingConfig.appId || '';
+  if (inputUrl && window.gameService) {
+    inputUrl.value = window.gameService.dbUrl || '';
   }
 
-  if (btnClose) {
+  if (btnClose && modal) {
     btnClose.addEventListener('click', () => modal.classList.remove('active'));
   }
 
-  if (form) {
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const config = {
-        apiKey: document.getElementById('fb-apiKey').value.trim(),
-        authDomain: document.getElementById('fb-authDomain').value.trim(),
-        projectId: document.getElementById('fb-projectId').value.trim(),
-        storageBucket: document.getElementById('fb-storageBucket').value.trim(),
-        messagingSenderId: document.getElementById('fb-messagingSenderId').value.trim(),
-        appId: document.getElementById('fb-appId').value.trim()
-      };
-
-      try {
-        const ok = window.gameService.saveFirebaseConfig(config);
-        if (ok) {
-          alert("✅ Firebase Firestore configuré avec succès ! Rechargement...");
-          window.location.reload();
-        } else {
-          alert("⚠️ Configuration sauvegardée, mais Firestore n'a pas pu s'initialiser. Vérifiez vos identifiants Firebase.");
-        }
-      } catch (err) {
-        alert("Erreur : " + err.message);
-      }
-      modal.classList.remove('active');
-      updateStatusBadges();
+  if (btnSave && inputUrl) {
+    btnSave.addEventListener('click', () => {
+      window.gameService.setDbUrl(inputUrl.value);
     });
   }
 
-  if (btnClear) {
+  if (btnClear && inputUrl) {
     btnClear.addEventListener('click', () => {
-      if (confirm("Réinitialiser et repasser en mode démo locale sans Firebase ?")) {
-        window.gameService.clearFirebaseConfig();
-        window.location.reload();
-      }
+      inputUrl.value = '';
+      window.gameService.setDbUrl('');
     });
   }
 }
@@ -3236,20 +3218,6 @@ function escapeHtml(str) {
 }
 
 
-// Setup modal RTDB
-const rtdbInput = document.getElementById('input-rtdb-url');
-if (rtdbInput) rtdbInput.value = window.gameService.dbUrl || '';
-document.getElementById('btn-save-rtdb').addEventListener('click', () => {
-  const url = document.getElementById('input-rtdb-url').value;
-  window.gameService.setDbUrl(url);
-});
-document.getElementById('btn-clear-rtdb').addEventListener('click', () => {
-  window.gameService.setDbUrl('');
-});
-document.getElementById('btn-close-firebase-modal').addEventListener('click', () => {
-  document.getElementById('modal-firebase').classList.remove('active');
-});
-
-  </script>
+</script>
 </body>
 </html>
