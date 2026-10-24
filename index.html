@@ -1461,6 +1461,10 @@ window.loadGoogleFont = function(fontName) {
    2. SERVICE TEMPS RÉEL UNIFIÉ (FIREBASE REALTIME DB + SOCKET.IO + LOCAL)
    =============================================================== */
 class UnifiedGameService {
+  isFirestoreActive() {
+    return !!this.db;
+  }
+
   getFirebaseConfig() { return null; }
   saveFirebaseConfig() { return false; }
   clearFirebaseConfig() {}
@@ -1868,8 +1872,8 @@ function showScreen(screenName) {
 function updateStatusBadges() {
   const badgeDb = document.getElementById('badge-db-status');
   if (badgeDb) {
-    if (window.gameService.isFirestoreActive()) {
-      badgeDb.textContent = '🔥 Firestore Connecté';
+    if (window.gameService && typeof window.gameService.isFirestoreActive === 'function' && window.gameService.isFirestoreActive()) {
+      badgeDb.textContent = '🔥 Firebase Connecté';
       badgeDb.className = 'badge-tag badge-firestore';
     } else {
       badgeDb.textContent = '⚡ Mode Local (Multi-onglets)';
