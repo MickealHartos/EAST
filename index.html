@@ -8,8 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   
-  <!-- Cloud MQTT WebSockets pour synchro automatique PC & Tél sans compte ni config -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.5.0/mqtt.min.js"></script>
+    <!-- Firebase SDK Compat v10 (Realtime Database & App) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
   <style>
 /* === STYLE KAHOOT-INSPIRED FONT BATTLE === */
@@ -1060,28 +1062,40 @@ body {
   <!-- ============================================== -->
   <!-- MODAL INFO RÉSEAU CLOUD                        -->
   <!-- ============================================== -->
+    <!-- ============================================== -->
+  <!-- MODAL CONFIGURATION EN LIGNE (FIREBASE / SERVEUR) -->
+  <!-- ============================================== -->
   <div id="modal-firebase" class="modal-overlay">
     <div class="modal-card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h3 style="font-size: 1.5rem; font-weight: 900; color: #46178f;">☁️ Synchronisation Cloud Temps Réel</h3>
+        <h3 style="font-size: 1.5rem; font-weight: 900; color: #46178f;">☁️ Connexion Temps Réel en Ligne</h3>
         <button id="btn-close-firebase-modal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">✕</button>
       </div>
 
-      <div style="background: #eef9ed; border: 2px solid #26890c; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
-        <strong style="color: #26890c; font-size: 1.1rem;">✅ Connexion 100% Automatique & Gratuite</strong>
-        <p style="margin-top: 8px; color: #333; line-height: 1.4;">
-          Cette page se connecte automatiquement à un réseau Cloud WebSockets mondial sécurisé.
-          Tous les joueurs sur téléphone (en 4G/5G ou Wi-Fi) et sur PC rejoignent la même partie en temps réel sans que vous ayez besoin de créer de compte ou de payer quoi que ce soit !
+      <div style="background: #eef9ed; border: 2px solid #26890c; border-radius: 12px; padding: 14px; margin-bottom: 16px;">
+        <strong style="color: #26890c;">Pour jouer entre PC et Téléphones sur Internet :</strong>
+        <p style="margin-top: 6px; font-size: 0.95rem; color: #333; line-height: 1.4;">
+          Collez simplement l'URL de votre base gratuite <strong>Firebase Realtime Database</strong> ci-dessous.
+          Tous les joueurs sur iPhone/Android et PC seront automatiquement synchronisés !
         </p>
       </div>
 
-      <p style="font-size: 0.95rem; color: #555; margin-bottom: 20px;">
-        Hébergez simplement ce fichier <strong>index.html</strong> sur n'importe quel site web (GitHub Pages, Vercel, Netlify, OVH, etc.) et partagez l'adresse aux joueurs !
-      </p>
+      <div class="form-group">
+        <label class="form-label" for="input-rtdb-url">URL Firebase Realtime Database</label>
+        <input type="text" id="input-rtdb-url" class="input-kahoot" placeholder="https://votre-projet-default-rtdb.europe-west1.firebasedatabase.app" style="font-size: 0.95rem;">
+        <div style="font-size: 0.85rem; color: #666; margin-top: 6px;">
+          💡 Gratuite en 1 clic sur <a href="https://console.firebase.google.com" target="_blank" style="color: #1368ce; font-weight: 700;">console.firebase.google.com</a> (Build > Realtime Database > Créer en mode test).
+        </div>
+      </div>
 
-      <button id="btn-close-cloud-info" class="btn-kahoot btn-green" style="width: 100%;">
-        Compris ! Fermer
-      </button>
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button id="btn-save-rtdb" class="btn-kahoot btn-green" style="flex: 2;">
+          💾 Enregistrer et Activer
+        </button>
+        <button id="btn-clear-rtdb" class="btn-kahoot btn-red" style="flex: 1;">
+          Effacer
+        </button>
+      </div>
     </div>
   </div>
 
@@ -1846,264 +1860,105 @@ class RealtimeGameService {
 
 
 /* ===============================================================
-   2. MOTEUR TEMPS RÉEL CLOUD 100% GRATUIT & AUTONOME (PC <-> TÉL)
+   2. SERVICE TEMPS RÉEL UNIFIÉ (FIREBASE REALTIME DB + SOCKET.IO + LOCAL)
    =============================================================== */
-
-/* ===============================================================
-   2. MOTEUR TEMPS RÉEL CLOUD 100% GRATUIT & AUTONOME (PC <-> TÉL)
-   Utilise un réseau MQTT WebSockets mondial sécurisé et gratuit.
-   Aucune inscription, aucune carte, aucune clé d'API requise !
-   =============================================================== */
-class AutonomousCloudGameService {
+class UnifiedGameService {
   constructor() {
-    this.storageKey = 'font_kahoot_firebase_config';
+    this.storageKey = 'font_kahoot_rtdb_url';
     this.localStateKey = 'font_kahoot_local_rooms';
-    this.mqttBrokers = [
-      'wss://broker.emqx.io:8084/mqtt',
-      'wss://broker.hivemq.com:8884/mqtt'
-    ];
-    this.currentBrokerIdx = 0;
-    this.mqttClient = null;
-    this.connected = false;
+    this.dbUrl = localStorage.getItem(this.storageKey) || 'https://snas10-default-rtdb.europe-west1.firebasedatabase.app';
+    this.socketUrl = localStorage.getItem('font_kahoot_socket_url') || '';
+    this.db = null;
+    this.socket = null;
     this.activeRoomCode = null;
-    this.role = null; // 'admin', 'player', 'presentation'
+    this.role = null;
     this.currentRoomState = null;
 
     this.activeRoomListeners = [];
     this.activeSubmissionsListeners = [];
     this.activePlayersListeners = [];
 
-    // BroadcastChannel pour synchro locale instantanée en plus du cloud
     this.localBroadcast = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('font_kahoot_realtime_sync') : null;
     if (this.localBroadcast) {
-      this.localBroadcast.onmessage = (event) => {
-        if (event.data && event.data.type === 'SYNC_STATE') {
-          this.triggerLocalListeners();
-        }
-      };
+      this.localBroadcast.onmessage = () => this.triggerLocalListeners();
     }
 
-    // Initialiser la connexion Cloud MQTT
-    this.connectCloudMQTT();
+    this.initConnections();
+  }
 
-    // Heartbeat de synchronisation pour l'ADMIN (diffuse l'état toutes les 2.5 secondes)
-    setInterval(() => {
-      if (this.role === 'admin' && this.activeRoomCode && this.currentRoomState) {
-        this.publishRoomState(this.activeRoomCode, this.currentRoomState);
+  initConnections() {
+    // 1. Essayer Socket.io si sur le même serveur
+    if (typeof io !== 'undefined') {
+      try {
+        const sUrl = this.socketUrl || (window.location.protocol.startsWith('http') ? window.location.origin : '');
+        if (sUrl && !sUrl.includes('github.io')) {
+          this.socket = io(sUrl, { timeout: 3000 });
+          this.socket.on('connect', () => {
+            console.log("✅ Connecté au serveur Socket.io !");
+            this.updateBadge("🟢 Serveur Socket.io Connecté", "badge-firestore");
+          });
+          this.socket.on('room_state', (state) => {
+            if (state && state.code === this.activeRoomCode) {
+              this.currentRoomState = state;
+              this.triggerLocalListeners();
+            }
+          });
+        }
+      } catch(e) { console.warn("Socket.io non actif :", e); }
+    }
+
+    // 2. Initialiser Firebase Realtime Database si configuré
+    if (this.dbUrl && window.firebase) {
+      try {
+        if (!firebase.apps.length) {
+          firebase.initializeApp({ databaseURL: this.dbUrl });
+        }
+        this.db = firebase.database();
+        console.log("✅ Firebase Realtime Database activée :", this.dbUrl);
+        this.updateBadge("🟢 Firebase RTDB Connecté", "badge-firestore");
+      } catch(err) {
+        console.warn("Erreur init Firebase RTDB :", err);
       }
-    }, 2500);
-  }
-
-  // --- GESTION DU CLOUD MQTT ---
-  connectCloudMQTT() {
-    const brokerUrl = this.mqttBrokers[this.currentBrokerIdx];
-    const clientId = 'fk_' + Math.random().toString(16).substring(2, 10);
-    console.log(`🌐 Connexion au Cloud Temps Réel gratuit (${brokerUrl})...`);
-
-    try {
-      if (typeof mqtt === 'undefined') {
-        console.warn("MQTT library not loaded yet, will retry...");
-        setTimeout(() => this.connectCloudMQTT(), 1000);
-        return;
-      }
-
-      this.mqttClient = mqtt.connect(brokerUrl, {
-        clientId,
-        clean: true,
-        connectTimeout: 5000,
-        reconnectPeriod: 2500
-      });
-
-      this.mqttClient.on('connect', () => {
-        this.connected = true;
-        console.log("✅ Connecté au Cloud Temps Réel mondial (PC & Tél synchronisés) !");
-        this.updateStatusBadge(true);
-        if (this.activeRoomCode) {
-          this.subscribeRoomTopics(this.activeRoomCode);
-          this.sendEvent(this.activeRoomCode, { type: 'REQUEST_SYNC' });
-        }
-      });
-
-      this.mqttClient.on('error', (err) => {
-        console.warn("⚠️ Erreur broker MQTT :", err.message);
-        this.fallbackNextBroker();
-      });
-
-      this.mqttClient.on('close', () => {
-        this.connected = false;
-        this.updateStatusBadge(false);
-      });
-
-      this.mqttClient.on('message', (topic, payload) => {
-        try {
-          const data = JSON.parse(payload.toString());
-          this.handleIncomingMqttMessage(topic, data);
-        } catch (e) {
-          console.error("Erreur parsing message MQTT :", e);
-        }
-      });
-    } catch (err) {
-      console.warn("Erreur init MQTT :", err);
-      this.fallbackNextBroker();
+    } else if (!this.socket) {
+      this.updateBadge("⚡ Mode Local (Multi-onglets)", "badge-demo");
     }
   }
 
-  fallbackNextBroker() {
-    if (this.mqttClient) {
-      try { this.mqttClient.end(true); } catch(e) {}
-    }
-    this.currentBrokerIdx = (this.currentBrokerIdx + 1) % this.mqttBrokers.length;
-    setTimeout(() => this.connectCloudMQTT(), 2000);
-  }
-
-  subscribeRoomTopics(code) {
-    if (!this.mqttClient || !this.connected) return;
-    code = code.trim().toUpperCase();
-    const stateTopic = `fontkahoot/v2/${code}/state`;
-    const eventsTopic = `fontkahoot/v2/${code}/events`;
-    this.mqttClient.subscribe([stateTopic, eventsTopic], { qos: 0 });
-    console.log(`📡 Abonné aux canaux Cloud : ${stateTopic} & ${eventsTopic}`);
-  }
-
-  handleIncomingMqttMessage(topic, data) {
-    const code = this.activeRoomCode;
-    if (!code) return;
-
-    // Réception de l'état complet depuis le Cloud
-    if (topic === `fontkahoot/v2/${code}/state`) {
-      if (data && data.code === code) {
-        // Si je suis joueur ou présentation, ou si la mise à jour est plus récente
-        if (this.role !== 'admin' || !this.currentRoomState || data.updatedAt >= (this.currentRoomState.updatedAt || 0)) {
-          this.currentRoomState = data;
-          this.saveLocalRoom(code, data);
-          this.triggerLocalListeners();
-        }
-      }
-      return;
-    }
-
-    // Réception des événements (JOIN, SUBMIT, VOTE, REQUEST_SYNC)
-    if (topic === `fontkahoot/v2/${code}/events`) {
-      if (data.code !== code) return;
-
-      if (data.type === 'REQUEST_SYNC') {
-        // Si j'ai l'état, je le renvoie immédiatement au demandeur
-        if (this.currentRoomState && (this.role === 'admin' || this.currentRoomState.status)) {
-          this.publishRoomState(code, this.currentRoomState);
-        }
-        return;
-      }
-
-      // Si je suis l'ADMIN, je traite l'action de manière autoritaire et je republie l'état
-      if (this.role === 'admin') {
-        const room = this.currentRoomState || this.getLocalRoom(code) || {
-          code, theme: "Thème", sampleText: "Texte", status: "lobby", players: {}, submissions: {}
-        };
-
-        if (data.type === 'JOIN' && data.player) {
-          room.players = room.players || {};
-          room.players[data.player.id] = data.player;
-          room.updatedAt = Date.now();
-          this.currentRoomState = room;
-          this.saveLocalRoom(code, room);
-          this.publishRoomState(code, room);
-          this.triggerLocalListeners();
-        }
-
-        if (data.type === 'SUBMIT' && data.submission) {
-          room.submissions = room.submissions || {};
-          room.submissions[data.submission.id] = data.submission;
-          room.updatedAt = Date.now();
-          this.currentRoomState = room;
-          this.saveLocalRoom(code, room);
-          this.publishRoomState(code, room);
-          this.triggerLocalListeners();
-        }
-
-        if (data.type === 'VOTE' && data.submissionId && data.playerId) {
-          if (room.submissions && room.submissions[data.submissionId]) {
-            const sub = room.submissions[data.submissionId];
-            sub.votes = sub.votes || {};
-            sub.votes[data.playerId] = data.voteValue;
-
-            let oui = 0, non = 0;
-            Object.values(sub.votes).forEach(v => {
-              if (v === 'oui') oui++;
-              if (v === 'non') non++;
-            });
-            sub.ouiCount = oui;
-            sub.nonCount = non;
-            room.updatedAt = Date.now();
-            this.currentRoomState = room;
-            this.saveLocalRoom(code, room);
-            this.publishRoomState(code, room);
-            this.triggerLocalListeners();
-          }
-        }
-      }
-    }
-  }
-
-  publishRoomState(code, state) {
-    if (!this.mqttClient || !this.connected) return;
-    code = code.trim().toUpperCase();
-    const topic = `fontkahoot/v2/${code}/state`;
-    try {
-      this.mqttClient.publish(topic, JSON.stringify(state), { qos: 0, retain: false });
-    } catch(e) {
-      console.warn("Erreur publishRoomState :", e);
-    }
-  }
-
-  sendEvent(code, eventData) {
-    code = code.trim().toUpperCase();
-    eventData.code = code;
-    eventData.timestamp = Date.now();
-
-    // Envoi via Cloud MQTT
-    if (this.mqttClient && this.connected) {
-      const topic = `fontkahoot/v2/${code}/events`;
-      this.mqttClient.publish(topic, JSON.stringify(eventData), { qos: 0 });
-    }
-
-    // Traitement local immédiat si même appareil
-    if (this.localBroadcast) {
-      this.localBroadcast.postMessage({ type: 'EVENT', ...eventData });
-    }
-  }
-
-  updateStatusBadge(isOnline) {
-    const badgeDb = document.getElementById('badge-db-status');
-    if (!badgeDb) return;
-    if (isOnline) {
-      badgeDb.textContent = '🟢 En Ligne (PC & Tél Synchronisés)';
-      badgeDb.className = 'badge-tag badge-firestore';
-      badgeDb.title = 'Connecté au Cloud temps réel mondial gratuit';
+  setDbUrl(url) {
+    url = (url || '').trim();
+    if (url) {
+      localStorage.setItem(this.storageKey, url);
+      this.dbUrl = url;
     } else {
-      badgeDb.textContent = '⚡ Mode Local (Connexion Cloud...)';
-      badgeDb.className = 'badge-tag badge-demo';
+      localStorage.removeItem(this.storageKey);
+      this.dbUrl = '';
+    }
+    window.location.reload();
+  }
+
+  updateBadge(text, className) {
+    const badge = document.getElementById('badge-db-status');
+    if (badge) {
+      badge.textContent = text;
+      badge.className = 'badge-tag ' + className;
     }
   }
 
-  // --- STOCKAGE LOCAL DE SECOURS ---
+  // Stockage Local fallback
   getLocalState() {
     const raw = localStorage.getItem(this.localStateKey);
     return raw ? JSON.parse(raw) : {};
   }
-
   getLocalRoom(code) {
-    code = code.trim().toUpperCase();
+    code = (code || '').trim().toUpperCase();
     return this.getLocalState()[code] || null;
   }
-
   saveLocalRoom(code, room) {
-    code = code.trim().toUpperCase();
+    code = (code || '').trim().toUpperCase();
     const state = this.getLocalState();
     state[code] = room;
     localStorage.setItem(this.localStateKey, JSON.stringify(state));
-    if (this.localBroadcast) {
-      this.localBroadcast.postMessage({ type: 'SYNC_STATE', timestamp: Date.now() });
-    }
+    if (this.localBroadcast) this.localBroadcast.postMessage({ type: 'SYNC' });
   }
 
   triggerLocalListeners() {
@@ -2111,35 +1966,32 @@ class AutonomousCloudGameService {
     if (!code) return;
     const room = this.currentRoomState || this.getLocalRoom(code);
     this.activeRoomListeners.forEach(({ cb }) => cb(room));
-    
     const subs = room && room.submissions ? Object.values(room.submissions) : [];
     this.activeSubmissionsListeners.forEach(({ cb }) => cb(subs));
-
     const players = room && room.players ? Object.values(room.players) : [];
     this.activePlayersListeners.forEach(({ cb }) => cb(players));
   }
 
-  // --- API PUBLIQUE UTILISÉE PAR APP.JS ---
   setRoleAndRoom(role, code) {
     this.role = role;
-    this.activeRoomCode = code.trim().toUpperCase();
-    if (this.connected) {
-      this.subscribeRoomTopics(this.activeRoomCode);
-      this.sendEvent(this.activeRoomCode, { type: 'REQUEST_SYNC' });
+    this.activeRoomCode = (code || '').trim().toUpperCase();
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('join_room', { code: this.activeRoomCode, role });
     }
   }
 
+  // --- API PARTIES ---
   async createOrUpdateRoom(code, roomData) {
     code = code.trim().toUpperCase();
     this.activeRoomCode = code;
     this.role = 'admin';
 
     const existing = this.currentRoomState || this.getLocalRoom(code) || {};
-    const updated = {
+    const payload = {
       ...existing,
       code,
       theme: roomData.theme || existing.theme || "Thème par défaut",
-      sampleText: roomData.sampleText || existing.sampleText || "Texte exemple",
+      sampleText: roomData.sampleText || existing.sampleText || "Texte d'exemple",
       status: roomData.status || existing.status || "lobby",
       currentSubmissionIndex: roomData.currentSubmissionIndex ?? existing.currentSubmissionIndex ?? 0,
       votingOpen: roomData.votingOpen ?? existing.votingOpen ?? false,
@@ -2148,11 +2000,17 @@ class AutonomousCloudGameService {
       updatedAt: Date.now()
     };
 
-    this.currentRoomState = updated;
-    this.saveLocalRoom(code, updated);
-    this.publishRoomState(code, updated);
+    this.currentRoomState = payload;
+    this.saveLocalRoom(code, payload);
     this.triggerLocalListeners();
-    return updated;
+
+    if (this.db) {
+      await this.db.ref(`games/${code}`).set(payload);
+    }
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('update_room', { code, data: payload });
+    }
+    return payload;
   }
 
   listenRoom(code, callback) {
@@ -2161,17 +2019,22 @@ class AutonomousCloudGameService {
     const entry = { code, cb: callback };
     this.activeRoomListeners.push(entry);
 
-    if (this.connected) {
-      this.subscribeRoomTopics(code);
-      this.sendEvent(code, { type: 'REQUEST_SYNC' });
+    // Écoute Firebase
+    if (this.db) {
+      this.db.ref(`games/${code}`).on('value', (snap) => {
+        const val = snap.val();
+        this.currentRoomState = val;
+        callback(val);
+      });
     }
 
-    // Réponse immédiate depuis le cache
+    // Réponse immédiate
     const room = this.currentRoomState || this.getLocalRoom(code);
     callback(room);
 
     return () => {
       this.activeRoomListeners = this.activeRoomListeners.filter(e => e !== entry);
+      if (this.db) this.db.ref(`games/${code}`).off();
     };
   }
 
@@ -2179,6 +2042,13 @@ class AutonomousCloudGameService {
     code = code.trim().toUpperCase();
     const entry = { code, cb: callback };
     this.activeSubmissionsListeners.push(entry);
+
+    if (this.db) {
+      this.db.ref(`games/${code}/submissions`).on('value', (snap) => {
+        const val = snap.val() || {};
+        callback(Object.values(val));
+      });
+    }
 
     const room = this.currentRoomState || this.getLocalRoom(code);
     const subs = room && room.submissions ? Object.values(room.submissions) : [];
@@ -2194,6 +2064,13 @@ class AutonomousCloudGameService {
     const entry = { code, cb: callback };
     this.activePlayersListeners.push(entry);
 
+    if (this.db) {
+      this.db.ref(`games/${code}/players`).on('value', (snap) => {
+        const val = snap.val() || {};
+        callback(Object.values(val));
+      });
+    }
+
     const room = this.currentRoomState || this.getLocalRoom(code);
     const players = room && room.players ? Object.values(room.players) : [];
     callback(players);
@@ -2206,10 +2083,20 @@ class AutonomousCloudGameService {
   async joinPlayer(code, player) {
     code = code.trim().toUpperCase();
     this.setRoleAndRoom('player', code);
-    this.sendEvent(code, {
-      type: 'JOIN',
-      player: { id: player.id, name: player.name, joinedAt: Date.now() }
-    });
+
+    const playerData = { id: player.id, name: player.name, joinedAt: Date.now() };
+
+    if (this.db) {
+      await this.db.ref(`games/${code}/players/${player.id}`).set(playerData);
+    }
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('join_room', { code, role: 'player', player: playerData });
+    }
+
+    const room = this.getLocalRoom(code) || { code, players: {}, submissions: {} };
+    room.players = room.players || {};
+    room.players[player.id] = playerData;
+    this.saveLocalRoom(code, room);
   }
 
   async submitFont(code, submission) {
@@ -2226,50 +2113,86 @@ class AutonomousCloudGameService {
       submittedAt: Date.now()
     };
 
-    this.sendEvent(code, {
-      type: 'SUBMIT',
-      submission: subData
-    });
+    if (this.db) {
+      await this.db.ref(`games/${code}/submissions/${subData.id}`).set(subData);
+    }
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('submit_font', { code, submission: subData });
+    }
+
+    const room = this.getLocalRoom(code) || { code, submissions: {} };
+    room.submissions = room.submissions || {};
+    room.submissions[subData.id] = subData;
+    this.saveLocalRoom(code, room);
     return subData;
   }
 
   async castVote(code, submissionId, playerId, voteValue) {
     code = code.trim().toUpperCase();
-    this.sendEvent(code, {
-      type: 'VOTE',
-      submissionId,
-      playerId,
-      voteValue
-    });
+
+    if (this.db) {
+      const subRef = this.db.ref(`games/${code}/submissions/${submissionId}`);
+      await subRef.transaction((sub) => {
+        if (!sub) return sub;
+        sub.votes = sub.votes || {};
+        sub.votes[playerId] = voteValue;
+        let oui = 0, non = 0;
+        Object.values(sub.votes).forEach(v => {
+          if (v === 'oui') oui++;
+          if (v === 'non') non++;
+        });
+        sub.ouiCount = oui;
+        sub.nonCount = non;
+        return sub;
+      });
+    }
+
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('cast_vote', { code, submissionId, playerId, voteValue });
+    }
+
+    const room = this.getLocalRoom(code);
+    if (room && room.submissions && room.submissions[submissionId]) {
+      const sub = room.submissions[submissionId];
+      sub.votes = sub.votes || {};
+      sub.votes[playerId] = voteValue;
+      let oui = 0, non = 0;
+      Object.values(sub.votes).forEach(v => {
+        if (v === 'oui') oui++;
+        if (v === 'non') non++;
+      });
+      sub.ouiCount = oui;
+      sub.nonCount = non;
+      this.saveLocalRoom(code, room);
+    }
   }
 
   async resetRound(code, newTheme, newSampleText) {
     code = code.trim().toUpperCase();
-    const existing = this.currentRoomState || this.getLocalRoom(code) || {};
-    existing.theme = newTheme;
-    existing.sampleText = newSampleText;
-    existing.status = 'submitting';
-    existing.currentSubmissionIndex = 0;
-    existing.votingOpen = false;
-    existing.submissions = {};
-    existing.updatedAt = Date.now();
+    const updateData = {
+      theme: newTheme,
+      sampleText: newSampleText,
+      status: "submitting",
+      currentSubmissionIndex: 0,
+      votingOpen: false,
+      submissions: {},
+      updatedAt: Date.now()
+    };
 
-    this.currentRoomState = existing;
-    this.saveLocalRoom(code, existing);
-    this.publishRoomState(code, existing);
-    this.triggerLocalListeners();
+    if (this.db) {
+      await this.db.ref(`games/${code}`).update(updateData);
+    }
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('reset_round', { code, newTheme, newSampleText });
+    }
+
+    const room = this.getLocalRoom(code) || {};
+    Object.assign(room, updateData);
+    this.saveLocalRoom(code, room);
   }
-
-  isFirestoreActive() {
-    return false; // Utilise le Cloud automatique
-  }
-
-  getFirebaseConfig() { return null; }
-  saveFirebaseConfig() { return false; }
-  clearFirebaseConfig() {}
 }
 
-window.gameService = new AutonomousCloudGameService();
+window.gameService = new UnifiedGameService();
 
 
 /* ===============================================================
@@ -3312,10 +3235,21 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-// Liaison bouton modal Cloud
-document.getElementById('btn-close-cloud-info').addEventListener('click', () => {
+
+// Setup modal RTDB
+const rtdbInput = document.getElementById('input-rtdb-url');
+if (rtdbInput) rtdbInput.value = window.gameService.dbUrl || '';
+document.getElementById('btn-save-rtdb').addEventListener('click', () => {
+  const url = document.getElementById('input-rtdb-url').value;
+  window.gameService.setDbUrl(url);
+});
+document.getElementById('btn-clear-rtdb').addEventListener('click', () => {
+  window.gameService.setDbUrl('');
+});
+document.getElementById('btn-close-firebase-modal').addEventListener('click', () => {
   document.getElementById('modal-firebase').classList.remove('active');
 });
+
   </script>
 </body>
 </html>
