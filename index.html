@@ -1,0 +1,3321 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FontKahoot ! La Bataille des Polices (Multijoueur Temps Réel)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Cloud MQTT WebSockets pour synchro automatique PC & Tél sans compte ni config -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.5.0/mqtt.min.js"></script>
+
+  <style>
+/* === STYLE KAHOOT-INSPIRED FONT BATTLE === */
+:root {
+  --primary-purple: #46178f;
+  --dark-purple: #25076b;
+  --bg-gradient: linear-gradient(135deg, #381272 0%, #1f0559 100%);
+  --kahoot-red: #e21b3c;
+  --kahoot-blue: #1368ce;
+  --kahoot-yellow: #ffa602;
+  --kahoot-green: #26890c;
+  --card-bg: #ffffff;
+  --text-dark: #333333;
+  --text-muted: #666666;
+  --border-radius: 16px;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  --shadow-bouncy: 0 10px 0 rgba(0, 0, 0, 0.15);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Montserrat', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  background: var(--bg-gradient);
+  color: #ffffff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+/* Header & Status Bar */
+.top-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 24px;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(8px);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.logo-brand {
+  font-size: 1.6rem;
+  font-weight: 900;
+  letter-spacing: -1px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.logo-brand span {
+  background: #ffa602;
+  color: #25076b;
+  padding: 2px 8px;
+  border-radius: 8px;
+  transform: rotate(-3deg);
+  display: inline-block;
+}
+
+.badge-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 50px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge-room {
+  background: #1368ce;
+  color: white;
+}
+
+.badge-status {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.badge-demo {
+  background: #ffaa00;
+  color: #222;
+  font-weight: 800;
+}
+
+.badge-firestore {
+  background: #26890c;
+  color: white;
+}
+
+/* Layout container */
+.container {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Screens */
+.game-screen {
+  display: none;
+  width: 100%;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.game-screen.active {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Cards */
+.kahoot-card {
+  background: var(--card-bg);
+  color: var(--text-dark);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  padding: 28px;
+  position: relative;
+}
+
+/* Buttons */
+.btn-kahoot {
+  border: none;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 14px 24px;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-decoration: none;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.2);
+}
+
+.btn-kahoot:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.2);
+}
+
+.btn-kahoot:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
+}
+
+.btn-red { background: var(--kahoot-red); color: white; }
+.btn-blue { background: var(--kahoot-blue); color: white; }
+.btn-yellow { background: var(--kahoot-yellow); color: #222; }
+.btn-green { background: var(--kahoot-green); color: white; }
+.btn-purple { background: var(--primary-purple); color: white; }
+.btn-dark { background: #333; color: white; }
+
+.btn-large {
+  padding: 20px 32px;
+  font-size: 1.4rem;
+  border-radius: 16px;
+}
+
+/* Form inputs */
+.input-kahoot {
+  width: 100%;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 3px solid #e0e0e0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  outline: none;
+  transition: border-color 0.2s;
+  background: #fbfbfb;
+  color: #222;
+}
+
+.input-kahoot:focus {
+  border-color: var(--kahoot-blue);
+  background: #ffffff;
+}
+
+.form-group {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.form-label {
+  display: block;
+  font-weight: 800;
+  margin-bottom: 8px;
+  color: #444;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Quick suggestion chips */
+.chip-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chip {
+  background: #f0f0f5;
+  color: #381272;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid #d5d5e5;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chip:hover {
+  background: #381272;
+  color: #fff;
+  transform: scale(1.04);
+}
+
+/* Banner Theme & Sample text */
+.game-info-banner {
+  background: linear-gradient(135deg, #1368ce 0%, #0d4b97 100%);
+  color: white;
+  border-radius: var(--border-radius);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow);
+  border-left: 8px solid #ffa602;
+}
+
+.banner-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
+
+.banner-theme {
+  font-size: 1.6rem;
+  font-weight: 900;
+  margin-bottom: 12px;
+}
+
+.banner-sample-box {
+  background: rgba(0, 0, 0, 0.25);
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 1.25rem;
+  font-weight: 600;
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+}
+
+/* Font Picker Component */
+.font-preview-stage {
+  background: #ffffff;
+  border: 4px solid #381272;
+  border-radius: 16px;
+  padding: 30px;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+  overflow: hidden;
+  transition: all 0.2s;
+}
+
+.preview-text {
+  font-size: 2.2rem;
+  color: #111;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.preview-font-name {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #666;
+  background: #f0f0f5;
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.font-filter-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.category-pill {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  background: #eee;
+  color: #444;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.category-pill.active {
+  background: #46178f;
+  color: white;
+  box-shadow: 0 4px 10px rgba(70, 23, 143, 0.3);
+}
+
+.font-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 6px;
+  margin-bottom: 24px;
+  background: #f8f8fc;
+  border-radius: 12px;
+  border: 2px solid #e5e5f0;
+}
+
+.font-item-card {
+  background: white;
+  border: 2px solid #e0e0ea;
+  border-radius: 10px;
+  padding: 14px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.font-item-card:hover {
+  border-color: #1368ce;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(19, 104, 206, 0.2);
+}
+
+.font-item-card.selected {
+  border-color: #26890c;
+  background: #eef9ed;
+  box-shadow: 0 4px 12px rgba(38, 137, 12, 0.25);
+}
+
+.font-item-sample {
+  font-size: 1.3rem;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #111;
+}
+
+.font-item-meta {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #777;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Voting Arena (Kahoot 2 massive blocks) */
+.voting-arena {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  min-height: 320px;
+  margin-top: 24px;
+}
+
+.vote-block {
+  border-radius: 20px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 20px;
+  color: white;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 12px 0 rgba(0, 0, 0, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.vote-block:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 0 rgba(0, 0, 0, 0.25);
+}
+
+.vote-block:active {
+  transform: translateY(6px);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25);
+}
+
+.vote-block.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none;
+}
+
+.vote-block-oui {
+  background: var(--kahoot-green);
+}
+
+.vote-block-non {
+  background: var(--kahoot-red);
+}
+
+.vote-icon {
+  font-size: 4rem;
+  margin-bottom: 12px;
+}
+
+.vote-title {
+  font-size: 2.4rem;
+  font-weight: 900;
+  letter-spacing: 2px;
+}
+
+.vote-sub {
+  font-size: 1.1rem;
+  opacity: 0.9;
+  font-weight: 700;
+}
+
+/* Presentation Screen Specifics (Projecteur) */
+.presentation-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  flex: 1;
+  padding: 20px;
+}
+
+.presentation-stage-card {
+  width: 100%;
+  max-width: 950px;
+  background: white;
+  color: #111;
+  border-radius: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+  padding: 40px;
+  position: relative;
+  overflow: hidden;
+  border-top: 12px solid #ffa602;
+}
+
+.pres-theme-header {
+  font-size: 1.1rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #777;
+  letter-spacing: 1.5px;
+  margin-bottom: 6px;
+}
+
+.pres-theme-name {
+  font-size: 2rem;
+  font-weight: 900;
+  color: #46178f;
+  margin-bottom: 30px;
+}
+
+.pres-sample-text {
+  font-size: 3.5rem;
+  line-height: 1.25;
+  padding: 30px 20px;
+  margin: 20px 0;
+  border-radius: 16px;
+  background: #fbfbfd;
+  border: 3px dashed #dadaea;
+  word-break: break-word;
+  transition: all 0.3s;
+}
+
+.pres-author-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: #1368ce;
+  color: white;
+  padding: 10px 24px;
+  border-radius: 50px;
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin-top: 10px;
+}
+
+.pres-font-tag {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #444;
+  background: #eee;
+  padding: 6px 18px;
+  border-radius: 20px;
+}
+
+.pres-votes-live {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  margin-top: 36px;
+}
+
+.pres-vote-count {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 28px;
+  border-radius: 16px;
+  font-weight: 900;
+  font-size: 1.8rem;
+  color: white;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}
+
+.count-oui { background: var(--kahoot-green); }
+.count-non { background: var(--kahoot-red); }
+
+/* Leaderboard Podium */
+.podium-wrapper {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 16px;
+  margin: 40px auto 30px;
+  max-width: 700px;
+  height: 280px;
+}
+
+.podium-slot {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.podium-pillar {
+  width: 100%;
+  border-radius: 16px 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-weight: 900;
+  color: white;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.25);
+  position: relative;
+}
+
+.podium-1 .podium-pillar {
+  height: 200px;
+  background: linear-gradient(180deg, #ffc700 0%, #d49a00 100%);
+  font-size: 3rem;
+}
+
+.podium-2 .podium-pillar {
+  height: 150px;
+  background: linear-gradient(180deg, #b0bec5 0%, #78909c 100%);
+  font-size: 2.2rem;
+}
+
+.podium-3 .podium-pillar {
+  height: 110px;
+  background: linear-gradient(180deg, #cd7f32 0%, #9c5c1d 100%);
+  font-size: 1.8rem;
+}
+
+.podium-player-name {
+  font-weight: 900;
+  font-size: 1.2rem;
+  margin-bottom: 8px;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.podium-sub-title {
+  font-size: 0.85rem;
+  color: #fffa;
+  margin-bottom: 4px;
+}
+
+/* Leaderboard Table */
+.leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  color: #222;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  margin-top: 20px;
+}
+
+.leaderboard-table th {
+  background: #381272;
+  color: white;
+  padding: 16px;
+  font-weight: 800;
+  text-align: left;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+}
+
+.leaderboard-table td {
+  padding: 16px;
+  border-bottom: 1px solid #eee;
+  font-weight: 600;
+}
+
+.leaderboard-table tr:hover {
+  background: #f8f8fc;
+}
+
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-weight: 900;
+  color: white;
+  background: #666;
+}
+
+.rank-1 { background: #ffa602; font-size: 1.1rem; }
+.rank-2 { background: #90a4ae; }
+.rank-3 { background: #bcaaa4; }
+
+/* Modal Firebase Config */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal-card {
+  background: white;
+  color: #222;
+  border-radius: 20px;
+  max-width: 600px;
+  width: 100%;
+  padding: 30px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .top-nav {
+    padding: 10px 14px;
+  }
+  .logo-brand {
+    font-size: 1.25rem;
+  }
+  .voting-arena {
+    grid-template-columns: 1fr;
+    min-height: 240px;
+  }
+  .vote-block {
+    padding: 20px;
+  }
+  .pres-sample-text {
+    font-size: 2.2rem;
+  }
+  .font-preview-stage {
+    padding: 16px;
+  }
+  .preview-text {
+    font-size: 1.6rem;
+  }
+}
+  </style>
+</head>
+<body>
+
+  <!-- BARRE SUPÉRIEURE DE NAVIGATION -->
+  <header class="top-nav">
+    <div class="logo-brand" id="nav-logo">
+      <span>FONT</span> KAHOOT !
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span id="badge-room-code" class="badge-tag badge-room" style="display: none;"></span>
+      <span id="badge-db-status" class="badge-tag badge-firestore">🟢 En Ligne (PC & Tél Synchronisés)</span>
+      <button id="btn-open-firebase-modal" class="btn-kahoot btn-yellow" style="padding: 6px 14px; font-size: 0.85rem;" title="Informations Réseau Cloud">
+        ☁️ Réseau Cloud
+      </button>
+    </div>
+  </header>
+
+  <!-- CONTENEUR PRINCIPAL -->
+  <main class="container">
+
+    <!-- ============================================== -->
+    <!-- ÉCRAN 1 : ACCUEIL & ENTRÉE PAR CODE            -->
+    <!-- ============================================== -->
+    <section id="screen-login" class="game-screen active">
+      <div style="margin: auto; max-width: 520px; width: 100%; text-align: center;">
+        
+        <div style="margin-bottom: 24px;">
+          <h1 style="font-size: 3rem; font-weight: 900; letter-spacing: -1px; text-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+            FONT <span style="color: #ffa602;">BATTLE</span>
+          </h1>
+          <p style="font-size: 1.15rem; opacity: 0.9; margin-top: 6px; font-weight: 600;">
+            Trouvez la meilleure police d'écriture pour chaque thème !
+          </p>
+          <div style="margin-top: 8px; font-size: 0.9rem; background: rgba(38,137,12,0.25); border: 1px solid #26890c; padding: 6px 12px; border-radius: 20px; display: inline-block;">
+            🌐 <strong>Multijoueur En Ligne Actif</strong> : Votre PC et vos téléphones sont connectés automatiquement !
+          </div>
+        </div>
+
+        <div class="kahoot-card">
+          <div class="form-group">
+            <label class="form-label" for="login-main-code">Code d'accès ou de partie</label>
+            <input type="text" id="login-main-code" class="input-kahoot" placeholder="Ex: ADMIN, PRESENTATION ou CODE PARTIE" autocomplete="off" autofocus>
+            <div style="font-size: 0.85rem; color: #777; margin-top: 6px; text-align: left;">
+              💡 Tapez <strong>ADMIN</strong> pour organiser, <strong>PRESENTATION</strong> pour l'écran géant, ou le code de la partie pour jouer.
+            </div>
+          </div>
+
+          <div class="form-group" id="login-pseudo-group">
+            <label class="form-label" for="login-pseudo">Votre Pseudo</label>
+            <input type="text" id="login-pseudo" class="input-kahoot" placeholder="Ex: Alex, TypoMaster, Sarah...">
+          </div>
+
+          <button id="btn-login-submit" class="btn-kahoot btn-green btn-large" style="width: 100%;">
+            🎮 Rejoindre la partie
+          </button>
+
+          <!-- Liens rapides -->
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 2px dashed #eee; display: flex; justify-content: space-around; font-size: 0.88rem; font-weight: 700;">
+            <a href="#" id="link-quick-admin" style="color: #46178f; text-decoration: none;">👑 Mode ADMIN</a>
+            <span style="color: #ccc;">•</span>
+            <a href="#" id="link-quick-pres" style="color: #1368ce; text-decoration: none;">📺 Mode PRESENTATION</a>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- ÉCRAN 2 : PANNEAU ADMIN (ORGANISATEUR DU JEU)   -->
+    <!-- ============================================== -->
+    <section id="screen-admin" class="game-screen">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <h2 style="font-size: 2.2rem; font-weight: 900;">👑 Panneau de Contrôle ADMIN</h2>
+          <p style="opacity: 0.85;">Gérez la partie multijoueur, le thème, le texte et le déroulement du jeu.</p>
+        </div>
+        <div>
+          <span id="admin-room-status-badge" class="badge-tag" style="background: #ffa602; color: #222; font-size: 1rem; padding: 8px 16px;">
+            ⏳ En attente
+          </span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+        
+        <!-- Colonne Gauche : Configuration de la manche -->
+        <div class="kahoot-card">
+          <h3 style="font-size: 1.4rem; font-weight: 800; color: #46178f; margin-bottom: 16px;">⚙️ Paramètres de la Salle</h3>
+
+          <div class="form-group">
+            <label class="form-label" for="admin-room-code">Code de Partie (partagé aux joueurs)</label>
+            <input type="text" id="admin-room-code" class="input-kahoot" value="FONT-101" style="font-size: 1.4rem; text-transform: uppercase;">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="admin-theme-input">Thème imposé</label>
+            <input type="text" id="admin-theme-input" class="input-kahoot" value="Affiche de film d'horreur dans l'espace">
+            <div class="chip-container" id="admin-theme-chips">
+              <span class="chip" data-val="Menu d'un restaurant gastronomique 3 étoiles">🍽️ Resto chic</span>
+              <span class="chip" data-val="Affiche de film d'horreur dans l'espace">👻 Horreur spatiale</span>
+              <span class="chip" data-val="Jeu vidéo rétro des années 80">🕹️ Rétro Arcade</span>
+              <span class="chip" data-val="Boîte de céréales fun pour enfants">🥣 Céréales Fun</span>
+              <span class="chip" data-val="Faire-part de mariage royal">💍 Mariage Royal</span>
+              <span class="chip" data-val="Album de Métal des enfers">🎸 Metal Hardcore</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="admin-text-input">Texte à afficher avec la police</label>
+            <input type="text" id="admin-text-input" class="input-kahoot" value="PERSONNE NE VOUS ENTENDRA CRIER">
+            <div class="chip-container" id="admin-text-chips">
+              <span class="chip" data-val="Saveurs & Délices d'Automne">Saveurs & Délices</span>
+              <span class="chip" data-val="PERSONNE NE VOUS ENTENDRA CRIER">PERSONNE NE VOUS ENTENDRA CRIER</span>
+              <span class="chip" data-val="SUPER ULTRA COMBO 1984">SUPER ULTRA COMBO</span>
+              <span class="chip" data-val="CROUSTI CHOC BOOM !">CROUSTI CHOC BOOM !</span>
+              <span class="chip" data-val="Amour, Joie & Éternité">Amour & Éternité</span>
+              <span class="chip" data-val="INFERNAL RESURRECTION">INFERNAL RESURRECTION</span>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 12px; margin-top: 20px;">
+            <button id="btn-admin-save-room" class="btn-kahoot btn-blue" style="flex: 1;">💾 Enregistrer la salle</button>
+            <button id="btn-admin-launch-subs" class="btn-kahoot btn-green" style="flex: 1;">🚀 Lancer la création</button>
+          </div>
+        </div>
+
+        <!-- Colonne Droite : Contrôle du jeu & Déroulement -->
+        <div class="kahoot-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="font-size: 1.4rem; font-weight: 800; color: #1368ce;">🎬 Contrôle des Votes</h3>
+            <span id="admin-player-count" class="badge-tag badge-room">0 joueur(s)</span>
+          </div>
+
+          <div style="background: #f8f8fc; border-radius: 12px; padding: 18px; margin-bottom: 20px; border: 2px solid #e0e0f0;">
+            <div id="admin-current-sub-label" style="font-size: 1.15rem; font-weight: 800; margin-bottom: 12px; color: #333;">
+              Aucune présentation active
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+              <button id="btn-admin-prev-sub" class="btn-kahoot btn-dark">⬅ Précédente</button>
+              <button id="btn-admin-next-sub" class="btn-kahoot btn-blue">Suivante ➡</button>
+            </div>
+
+            <button id="btn-admin-toggle-vote" class="btn-kahoot btn-green" style="width: 100%; margin-bottom: 10px;">
+              🟢 Ouvrir le vote
+            </button>
+            
+            <button id="btn-admin-go-leaderboard" class="btn-kahoot btn-yellow" style="width: 100%;">
+              🏆 Afficher le Podium & Classement
+            </button>
+          </div>
+
+          <div style="display: flex; gap: 12px;">
+            <button id="btn-admin-start-pres" class="btn-kahoot btn-purple" style="flex: 1;">
+              📺 Démarrer les Présentations
+            </button>
+            <button id="btn-admin-reset-round" class="btn-kahoot btn-red" style="flex: 1;">
+              🔄 Nouvelle Manche
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Soumissions reçues en temps réel -->
+      <div class="kahoot-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="font-size: 1.3rem; font-weight: 800; color: #222;">📥 Soumissions reçues des joueurs</h3>
+          <span id="admin-subs-count" class="badge-tag" style="background: #26890c; color: #fff;">0 reçue(s)</span>
+        </div>
+        <div id="admin-submissions-list" style="max-height: 280px; overflow-y: auto;">
+          <div style="padding: 20px; text-align: center; color: #888;">En attente des propositions des joueurs...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- ÉCRAN 3 : PRÉSENTATION GÉANTE (PROPRIÉTÉ TV)   -->
+    <!-- ============================================== -->
+    <section id="screen-presentation" class="game-screen">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span class="badge-tag" style="background: #ffa602; color: #222; font-size: 1.1rem; padding: 8px 18px;">
+            📺 ÉCRAN DE PRÉSENTATION
+          </span>
+        </div>
+        <button id="btn-pres-fullscreen" class="btn-kahoot btn-dark" style="padding: 8px 16px; font-size: 0.9rem;">
+          ⛶ Plein Écran
+        </button>
+      </div>
+
+      <!-- Scène centrale dynamique -->
+      <div class="presentation-container">
+        <div class="presentation-stage-card" id="pres-stage-content">
+          <div style="padding: 40px; text-align: center;">
+            <h2 style="font-size: 2.4rem; color: #46178f;">Chargement de la Présentation...</h2>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- ÉCRAN 4 : VUE JOUEUR (MOBILE / DESKTOP)        -->
+    <!-- ============================================== -->
+    <section id="screen-player" class="game-screen">
+      
+      <!-- État 1 : En attente dans le lobby -->
+      <div id="player-panel-lobby" class="kahoot-card" style="text-align: center; max-width: 550px; margin: 40px auto; padding: 40px;">
+        <div style="font-size: 4rem; margin-bottom: 16px;">⏳</div>
+        <h2 style="font-size: 2rem; font-weight: 900; color: #46178f; margin-bottom: 10px;">Vous êtes connecté !</h2>
+        <p style="font-size: 1.1rem; color: #555; margin-bottom: 20px;">
+          Partie : <strong id="player-lobby-code" style="color: #1368ce; font-size: 1.4rem;">...</strong>
+        </p>
+        <p style="font-weight: 600; color: #777;">
+          L'organisateur va bientôt lancer la manche avec le thème et le texte secret. Tenez-vous prêt !
+        </p>
+      </div>
+
+      <!-- État 2 : Choisir sa police et soumettre -->
+      <div id="player-panel-submit" style="display: none;">
+        <!-- Bannière du Thème & Texte -->
+        <div class="game-info-banner">
+          <div class="banner-title">Thème de la manche</div>
+          <div class="banner-theme" id="player-banner-theme">Thème</div>
+          <div class="banner-title" style="margin-top: 10px;">Texte à illustrer</div>
+          <div class="banner-sample-box" id="player-banner-sample">Texte exemple</div>
+        </div>
+
+        <!-- Si déjà soumis -->
+        <div id="player-already-submitted-card" class="kahoot-card" style="display: none; text-align: center; padding: 40px;">
+          <div style="font-size: 4rem; margin-bottom: 16px;">✅</div>
+          <h2 style="font-size: 2rem; font-weight: 900; color: #26890c; margin-bottom: 10px;">Proposition envoyée !</h2>
+          <p style="font-size: 1.1rem; color: #555; margin-bottom: 20px;">
+            Votre choix : « <strong id="player-my-sub-title">...</strong> » avec la police <strong id="player-my-sub-font">...</strong>
+          </p>
+          <div class="font-preview-stage" style="margin: 20px auto; max-width: 600px;">
+            <div id="player-my-sub-preview" class="preview-text">...</div>
+          </div>
+          <p style="color: #777; font-weight: 700;">En attente de la fin des soumissions des autres joueurs...</p>
+        </div>
+
+        <!-- Formulaire de soumission -->
+        <div id="player-submit-form" class="kahoot-card">
+          <h3 style="font-size: 1.4rem; font-weight: 900; color: #46178f; margin-bottom: 14px;">
+            1. Prévisualisation en direct de votre police
+          </h3>
+
+          <div class="font-preview-stage">
+            <div id="player-preview-text" class="preview-text">PERSONNE NE VOUS ENTENDRA CRIER</div>
+            <div id="player-preview-font-name" class="preview-font-name">Montserrat</div>
+          </div>
+
+          <h3 style="font-size: 1.4rem; font-weight: 900; color: #46178f; margin-bottom: 10px;">
+            2. Choisissez parmi +260 polices Google Fonts
+          </h3>
+
+          <div style="margin-bottom: 14px;">
+            <input type="text" id="player-font-search" class="input-kahoot" placeholder="🔍 Rechercher une police (ex: Creepster, Pixel, Script, Bebas...)" style="padding: 12px 16px;">
+          </div>
+
+          <!-- Filtres catégories -->
+          <div class="font-filter-bar" id="player-category-filters"></div>
+
+          <!-- Grille des polices -->
+          <div class="font-grid" id="player-font-grid"></div>
+
+          <h3 style="font-size: 1.4rem; font-weight: 900; color: #46178f; margin-top: 20px; margin-bottom: 10px;">
+            3. Nommez votre proposition & Validez
+          </h3>
+
+          <div class="form-group">
+            <label class="form-label" for="player-submission-title">Titre / Nom de votre soumission</label>
+            <input type="text" id="player-submission-title" class="input-kahoot" placeholder="Ex: L'Épouvante Cosmique, Le Style Parfait, Terreur Nocturne...">
+          </div>
+
+          <button id="btn-player-submit-font" class="btn-kahoot btn-green btn-large" style="width: 100%;">
+            🚀 Valider et Soumettre ma Police
+          </button>
+        </div>
+      </div>
+
+      <!-- État 3 : Voter Oui ou Non pendant la présentation -->
+      <div id="player-panel-vote" style="display: none; max-width: 650px; margin: 20px auto; width: 100%;">
+        <div class="kahoot-card" style="text-align: center; margin-bottom: 20px;">
+          <div style="font-size: 0.9rem; font-weight: 800; color: #888; text-transform: uppercase;">Vote en direct</div>
+          <h2 id="player-vote-sub-title" style="font-size: 2.2rem; font-weight: 900; color: #46178f; margin: 6px 0;">« Titre »</h2>
+          <div id="player-vote-sub-author" style="font-size: 1.15rem; font-weight: 700; color: #555;">par Joueur</div>
+          <div id="player-vote-sub-font" class="badge-tag badge-status" style="margin-top: 10px; background: #eee; color: #333; font-size: 0.95rem;">Police : ...</div>
+        </div>
+
+        <!-- Boutons de Vote Kahoot Géants -->
+        <div class="voting-arena" id="player-voting-arena">
+          <!-- BOUTON VERT OUI -->
+          <button id="btn-vote-oui" class="vote-block vote-block-oui">
+            <div class="vote-icon">👍</div>
+            <div class="vote-title">OUI</div>
+            <div class="vote-sub">J'adore ce choix !</div>
+          </button>
+
+          <!-- BOUTON ROUGE NON -->
+          <button id="btn-vote-non" class="vote-block vote-block-non">
+            <div class="vote-icon">👎</div>
+            <div class="vote-title">NON</div>
+            <div class="vote-sub">Pas du tout adapté !</div>
+          </button>
+        </div>
+
+        <div id="player-vote-closed-msg" class="kahoot-card" style="display: none; text-align: center; padding: 30px;">
+          <h3 style="font-size: 1.5rem; color: #e21b3c;">🔒 Le vote est actuellement fermé</h3>
+          <p style="color: #666; margin-top: 8px;">Attendez que l'organisateur passe à la police suivante.</p>
+        </div>
+
+        <div id="player-vote-status" class="badge-tag" style="display: none; width: 100%; text-align: center; justify-content: center; margin-top: 18px; padding: 14px; font-size: 1.1rem; background: #26890c; color: white;">
+          ✅ Vote enregistré !
+        </div>
+      </div>
+
+      <!-- État 4 : Leaderboard Joueur -->
+      <div id="player-panel-leaderboard" style="display: none;"></div>
+
+    </section>
+
+  </main>
+
+  <!-- ============================================== -->
+  <!-- MODAL INFO RÉSEAU CLOUD                        -->
+  <!-- ============================================== -->
+  <div id="modal-firebase" class="modal-overlay">
+    <div class="modal-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="font-size: 1.5rem; font-weight: 900; color: #46178f;">☁️ Synchronisation Cloud Temps Réel</h3>
+        <button id="btn-close-firebase-modal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">✕</button>
+      </div>
+
+      <div style="background: #eef9ed; border: 2px solid #26890c; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+        <strong style="color: #26890c; font-size: 1.1rem;">✅ Connexion 100% Automatique & Gratuite</strong>
+        <p style="margin-top: 8px; color: #333; line-height: 1.4;">
+          Cette page se connecte automatiquement à un réseau Cloud WebSockets mondial sécurisé.
+          Tous les joueurs sur téléphone (en 4G/5G ou Wi-Fi) et sur PC rejoignent la même partie en temps réel sans que vous ayez besoin de créer de compte ou de payer quoi que ce soit !
+        </p>
+      </div>
+
+      <p style="font-size: 0.95rem; color: #555; margin-bottom: 20px;">
+        Hébergez simplement ce fichier <strong>index.html</strong> sur n'importe quel site web (GitHub Pages, Vercel, Netlify, OVH, etc.) et partagez l'adresse aux joueurs !
+      </p>
+
+      <button id="btn-close-cloud-info" class="btn-kahoot btn-green" style="width: 100%;">
+        Compris ! Fermer
+      </button>
+    </div>
+  </div>
+
+  <!-- TOUT LE JAVASCRIPT DU JEU DANS CE SEUL FICHIER -->
+  <script>
+/* ===============================================================
+   1. CATALOGUE DE +260 POLICES & CHARGEUR DYNAMIQUE
+   =============================================================== */
+window.FONT_CATALOG = [
+  // --- SANS-SERIF MODERNES & CLASSIQUES ---
+  { name: "Roboto", category: "Sans-Serif" },
+  { name: "Open Sans", category: "Sans-Serif" },
+  { name: "Montserrat", category: "Sans-Serif" },
+  { name: "Poppins", category: "Sans-Serif" },
+  { name: "Lato", category: "Sans-Serif" },
+  { name: "Inter", category: "Sans-Serif" },
+  { name: "Oswald", category: "Sans-Serif" },
+  { name: "Raleway", category: "Sans-Serif" },
+  { name: "Nunito", category: "Sans-Serif" },
+  { name: "Ubuntu", category: "Sans-Serif" },
+  { name: "Rubik", category: "Sans-Serif" },
+  { name: "Work Sans", category: "Sans-Serif" },
+  { name: "Quicksand", category: "Sans-Serif" },
+  { name: "Fira Sans", category: "Sans-Serif" },
+  { name: "Barlow", category: "Sans-Serif" },
+  { name: "Mulish", category: "Sans-Serif" },
+  { name: "Titillium Web", category: "Sans-Serif" },
+  { name: "Kanit", category: "Sans-Serif" },
+  { name: "DM Sans", category: "Sans-Serif" },
+  { name: "Josefin Sans", category: "Sans-Serif" },
+  { name: "Anton", category: "Impact & Gras" },
+  { name: "Bebas Neue", category: "Impact & Gras" },
+  { name: "Cabin", category: "Sans-Serif" },
+  { name: "Karla", category: "Sans-Serif" },
+  { name: "Manrope", category: "Sans-Serif" },
+  { name: "Space Grotesk", category: "Sans-Serif" },
+  { name: "Plus Jakarta Sans", category: "Sans-Serif" },
+  { name: "Outfit", category: "Sans-Serif" },
+  { name: "Figtree", category: "Sans-Serif" },
+  { name: "Lexend", category: "Sans-Serif" },
+  { name: "Sora", category: "Sans-Serif" },
+  { name: "Urbanist", category: "Sans-Serif" },
+  { name: "Varela Round", category: "Sans-Serif" },
+  { name: "Comfortaa", category: "Sans-Serif" },
+  { name: "Exo 2", category: "Sci-Fi & Tech" },
+  { name: "Teko", category: "Impact & Gras" },
+  { name: "Fjalla One", category: "Impact & Gras" },
+  { name: "Archivo Black", category: "Impact & Gras" },
+  { name: "Asap", category: "Sans-Serif" },
+  { name: "Signika", category: "Sans-Serif" },
+  { name: "Maven Pro", category: "Sans-Serif" },
+  { name: "Questrial", category: "Sans-Serif" },
+  { name: "Catamaran", category: "Sans-Serif" },
+  { name: "Cairo", category: "Sans-Serif" },
+  { name: "Prompt", category: "Sans-Serif" },
+  { name: "Overpass", category: "Sans-Serif" },
+  { name: "Public Sans", category: "Sans-Serif" },
+  { name: "Red Hat Display", category: "Sans-Serif" },
+  { name: "Chakra Petch", category: "Sci-Fi & Tech" },
+  { name: "Rajdhani", category: "Sci-Fi & Tech" },
+
+  // --- SERIF ÉLÉGANTES, LUXE & ÉDITORIALES ---
+  { name: "Playfair Display", category: "Serif & Luxe" },
+  { name: "Merriweather", category: "Serif & Luxe" },
+  { name: "Lora", category: "Serif & Luxe" },
+  { name: "PT Serif", category: "Serif & Luxe" },
+  { name: "Libre Baskerville", category: "Serif & Luxe" },
+  { name: "Crimson Text", category: "Serif & Luxe" },
+  { name: "EB Garamond", category: "Serif & Luxe" },
+  { name: "Cormorant Garamond", category: "Serif & Luxe" },
+  { name: "Bitter", category: "Serif & Luxe" },
+  { name: "Arvo", category: "Serif & Luxe" },
+  { name: "Cinzel", category: "Serif & Luxe" },
+  { name: "Cinzel Decorative", category: "Serif & Luxe" },
+  { name: "Abril Fatface", category: "Serif & Luxe" },
+  { name: "DM Serif Display", category: "Serif & Luxe" },
+  { name: "Bodoni Moda", category: "Serif & Luxe" },
+  { name: "Prata", category: "Serif & Luxe" },
+  { name: "Marcellus", category: "Serif & Luxe" },
+  { name: "Yeseva One", category: "Serif & Luxe" },
+  { name: "Rozha One", category: "Serif & Luxe" },
+  { name: "Spectral", category: "Serif & Luxe" },
+  { name: "Alegreya", category: "Serif & Luxe" },
+  { name: "Vollkorn", category: "Serif & Luxe" },
+  { name: "Cardo", category: "Serif & Luxe" },
+  { name: "Fraunces", category: "Serif & Luxe" },
+  { name: "Old Standard TT", category: "Serif & Luxe" },
+  { name: "Nanum Myeongjo", category: "Serif & Luxe" },
+  { name: "Noticia Text", category: "Serif & Luxe" },
+  { name: "Domine", category: "Serif & Luxe" },
+  { name: "Crete Round", category: "Serif & Luxe" },
+  { name: "Bree Serif", category: "Serif & Luxe" },
+  { name: "Zilla Slab", category: "Serif & Luxe" },
+  { name: "Roboto Slab", category: "Serif & Luxe" },
+  { name: "Alfa Slab One", category: "Impact & Gras" },
+  { name: "Ultra", category: "Impact & Gras" },
+  { name: "vidaloka", category: "Serif & Luxe" },
+  { name: "Forum", category: "Serif & Luxe" },
+  { name: "Gilda Display", category: "Serif & Luxe" },
+  { name: "Italiana", category: "Serif & Luxe" },
+  { name: "Oranienbaum", category: "Serif & Luxe" },
+  { name: "Castoro", category: "Serif & Luxe" },
+
+  // --- MANUSCRITES, CALLIGRAPHIE & ROMANTIQUES ---
+  { name: "Dancing Script", category: "Manuscrit & Calligraphie" },
+  { name: "Pacifico", category: "Manuscrit & Calligraphie" },
+  { name: "Lobster", category: "Manuscrit & Calligraphie" },
+  { name: "Caveat", category: "Manuscrit & Calligraphie" },
+  { name: "Satisfy", category: "Manuscrit & Calligraphie" },
+  { name: "Great Vibes", category: "Manuscrit & Calligraphie" },
+  { name: "Shadows Into Light", category: "Manuscrit & Calligraphie" },
+  { name: "Indie Flower", category: "Manuscrit & Calligraphie" },
+  { name: "Kaushan Script", category: "Manuscrit & Calligraphie" },
+  { name: "Permanent Marker", category: "Manuscrit & Calligraphie" },
+  { name: "SACRAMENTO", category: "Manuscrit & Calligraphie" },
+  { name: "Sacramento", category: "Manuscrit & Calligraphie" },
+  { name: "Cookie", category: "Manuscrit & Calligraphie" },
+  { name: "Courgette", category: "Manuscrit & Calligraphie" },
+  { name: "Yellowtail", category: "Manuscrit & Calligraphie" },
+  { name: "Amatic SC", category: "Manuscrit & Calligraphie" },
+  { name: "Patrick Hand", category: "Manuscrit & Calligraphie" },
+  { name: "Architects Daughter", category: "Manuscrit & Calligraphie" },
+  { name: "Gloria Hallelujah", category: "Manuscrit & Calligraphie" },
+  { name: "Handlee", category: "Manuscrit & Calligraphie" },
+  { name: "Parisienne", category: "Manuscrit & Calligraphie" },
+  { name: "Allura", category: "Manuscrit & Calligraphie" },
+  { name: "Tangerine", category: "Manuscrit & Calligraphie" },
+  { name: "Alex Brush", category: "Manuscrit & Calligraphie" },
+  { name: "Pinyon Script", category: "Manuscrit & Calligraphie" },
+  { name: "Mr Dafoe", category: "Manuscrit & Calligraphie" },
+  { name: "Homemade Apple", category: "Manuscrit & Calligraphie" },
+  { name: "Reenie Beanie", category: "Manuscrit & Calligraphie" },
+  { name: "Rock Salt", category: "Manuscrit & Calligraphie" },
+  { name: "Covered By Your Grace", category: "Manuscrit & Calligraphie" },
+  { name: "Nothing You Could Do", category: "Manuscrit & Calligraphie" },
+  { name: "Marck Script", category: "Manuscrit & Calligraphie" },
+  { name: "Bad Script", category: "Manuscrit & Calligraphie" },
+  { name: "Damion", category: "Manuscrit & Calligraphie" },
+  { name: "Grand Hotel", category: "Manuscrit & Calligraphie" },
+  { name: "Rochester", category: "Manuscrit & Calligraphie" },
+  { name: "Neucha", category: "Manuscrit & Calligraphie" },
+  { name: "Kalam", category: "Manuscrit & Calligraphie" },
+  { name: "Sriracha", category: "Manuscrit & Calligraphie" },
+  { name: "Gochi Hand", category: "Manuscrit & Calligraphie" },
+  { name: "Just Another Hand", category: "Manuscrit & Calligraphie" },
+  { name: "Cedarville Cursive", category: "Manuscrit & Calligraphie" },
+  { name: "La Belle Aurore", category: "Manuscrit & Calligraphie" },
+  { name: "Herr Von Muellerhoff", category: "Manuscrit & Calligraphie" },
+  { name: "Monsieur La Doulaise", category: "Manuscrit & Calligraphie" },
+
+  // --- HORREUR, GOTHIQUE, METAL & HALLOWEEN ---
+  { name: "Creepster", category: "Horreur & Gothique" },
+  { name: "Nosifer", category: "Horreur & Gothique" },
+  { name: "Butcherman", category: "Horreur & Gothique" },
+  { name: "Eater", category: "Horreur & Gothique" },
+  { name: "Metal Mania", category: "Horreur & Gothique" },
+  { name: "New Rocker", category: "Horreur & Gothique" },
+  { name: "UnifrakturMaguntia", category: "Horreur & Gothique" },
+  { name: "UnifrakturCook", category: "Horreur & Gothique" },
+  { name: "Pirata One", category: "Horreur & Gothique" },
+  { name: "MedievalSharp", category: "Horreur & Gothique" },
+  { name: "Almendra Display", category: "Horreur & Gothique" },
+  { name: "Frijole", category: "Horreur & Gothique" },
+  { name: "Griffy", category: "Horreur & Gothique" },
+  { name: "Jolly Lodger", category: "Horreur & Gothique" },
+  { name: "Monster", category: "Horreur & Gothique" },
+  { name: "Henny Penny", category: "Horreur & Gothique" },
+  { name: "Mystery Quest", category: "Horreur & Gothique" },
+  { name: "Underdog", category: "Horreur & Gothique" },
+  { name: "Finger Paint", category: "Horreur & Gothique" },
+  { name: "Rubik Wet Paint", category: "Horreur & Gothique" },
+  { name: "Rubik Glitch", category: "Horreur & Gothique" },
+  { name: "Rubik Burned", category: "Horreur & Gothique" },
+  { name: "Syne Tactile", category: "Horreur & Gothique" },
+
+  // --- FUN, CARTOON, COMIC & ENFANTIN ---
+  { name: "Bangers", category: "Fun & Cartoon" },
+  { name: "Fredoka", category: "Fun & Cartoon" },
+  { name: "Comic Neue", category: "Fun & Cartoon" },
+  { name: "Luckiest Guy", category: "Fun & Cartoon" },
+  { name: "Chewy", category: "Fun & Cartoon" },
+  { name: "Boogaloo", category: "Fun & Cartoon" },
+  { name: "Bubblegum Sans", category: "Fun & Cartoon" },
+  { name: "Carter One", category: "Fun & Cartoon" },
+  { name: "Titan One", category: "Fun & Cartoon" },
+  { name: "Lilita One", category: "Fun & Cartoon" },
+  { name: "Sigmar One", category: "Fun & Cartoon" },
+  { name: "Bowlby One SC", category: "Fun & Cartoon" },
+  { name: "Bungee", category: "Fun & Cartoon" },
+  { name: "Bungee Shade", category: "Fun & Cartoon" },
+  { name: "Bungee Inline", category: "Fun & Cartoon" },
+  { name: "Spicy Rice", category: "Fun & Cartoon" },
+  { name: "Modak", category: "Fun & Cartoon" },
+  { name: "Chango", category: "Fun & Cartoon" },
+  { name: "Ranchers", category: "Fun & Cartoon" },
+  { name: "Sniglet", category: "Fun & Cartoon" },
+  { name: "Baloo 2", category: "Fun & Cartoon" },
+  { name: "Coiny", category: "Fun & Cartoon" },
+  { name: "Shrikhand", category: "Fun & Cartoon" },
+  { name: "Kavoon", category: "Fun & Cartoon" },
+  { name: "Lemon", category: "Fun & Cartoon" },
+  { name: "Freckle Face", category: "Fun & Cartoon" },
+  { name: "Barrio", category: "Fun & Cartoon" },
+  { name: "Kablammo", category: "Fun & Cartoon" },
+  { name: "Honk", category: "Fun & Cartoon" },
+  { name: "Nabla", category: "Fun & Cartoon" },
+  { name: "Rubik Bubbles", category: "Fun & Cartoon" },
+  { name: "Rubik Puddles", category: "Fun & Cartoon" },
+  { name: "Rubik Vinyl", category: "Fun & Cartoon" },
+  { name: "Londrina Outline", category: "Fun & Cartoon" },
+  { name: "Londrina Shadow", category: "Fun & Cartoon" },
+  { name: "Londrina Sketch", category: "Fun & Cartoon" },
+
+  // --- RÉTRO, PIXEL, ARCADE & VINTAGE / WESTERN ---
+  { name: "Press Start 2P", category: "Rétro, Pixel & Western" },
+  { name: "VT323", category: "Rétro, Pixel & Western" },
+  { name: "Silkscreen", category: "Rétro, Pixel & Western" },
+  { name: "Pixelify Sans", category: "Rétro, Pixel & Western" },
+  { name: "DotGothic16", category: "Rétro, Pixel & Western" },
+  { name: "Special Elite", category: "Rétro, Pixel & Western" },
+  { name: "Courier Prime", category: "Rétro, Pixel & Western" },
+  { name: "Cutive Mono", category: "Rétro, Pixel & Western" },
+  { name: "Rye", category: "Rétro, Pixel & Western" },
+  { name: "Smokum", category: "Rétro, Pixel & Western" },
+  { name: "Ewert", category: "Rétro, Pixel & Western" },
+  { name: "Sancreek", category: "Rétro, Pixel & Western" },
+  { name: "Diplomata", category: "Rétro, Pixel & Western" },
+  { name: "Diplomata SC", category: "Rétro, Pixel & Western" },
+  { name: "Fascinate", category: "Rétro, Pixel & Western" },
+  { name: "Fascinate Inline", category: "Rétro, Pixel & Western" },
+  { name: "Monoton", category: "Rétro, Pixel & Western" },
+  { name: "Righteous", category: "Rétro, Pixel & Western" },
+  { name: "Poiret One", category: "Rétro, Pixel & Western" },
+  { name: "Limelight", category: "Rétro, Pixel & Western" },
+  { name: "Federo", category: "Rétro, Pixel & Western" },
+  { name: "Kelly Slab", category: "Rétro, Pixel & Western" },
+  { name: "Wallpoet", category: "Rétro, Pixel & Western" },
+  { name: "Stalinist One", category: "Rétro, Pixel & Western" },
+  { name: "Black Ops One", category: "Impact & Gras" },
+  { name: "Stardos Stencil", category: "Impact & Gras" },
+  { name: "Allerta Stencil", category: "Impact & Gras" },
+  { name: "Fredericka the Great", category: "Rétro, Pixel & Western" },
+  { name: "Vast Shadow", category: "Rétro, Pixel & Western" },
+  { name: "Graduate", category: "Impact & Gras" },
+
+  // --- SCI-FI, FUTURISTE, TECH & MONOSPACE ---
+  { name: "Orbitron", category: "Sci-Fi & Tech" },
+  { name: "Audiowide", category: "Sci-Fi & Tech" },
+  { name: "Michroma", category: "Sci-Fi & Tech" },
+  { name: "Syncopate", category: "Sci-Fi & Tech" },
+  { name: "Electrolize", category: "Sci-Fi & Tech" },
+  { name: "Aldrich", category: "Sci-Fi & Tech" },
+  { name: "Quantico", category: "Sci-Fi & Tech" },
+  { name: "Bruno Ace SC", category: "Sci-Fi & Tech" },
+  { name: "Zen Dots", category: "Sci-Fi & Tech" },
+  { name: "Turret Road", category: "Sci-Fi & Tech" },
+  { name: "Nova Square", category: "Sci-Fi & Tech" },
+  { name: "Megrim", category: "Sci-Fi & Tech" },
+  { name: "Major Mono Display", category: "Sci-Fi & Tech" },
+  { name: "Syne Mono", category: "Sci-Fi & Tech" },
+  { name: "Space Mono", category: "Sci-Fi & Tech" },
+  { name: "JetBrains Mono", category: "Sci-Fi & Tech" },
+  { name: "Fira Code", category: "Sci-Fi & Tech" },
+  { name: "Source Code Pro", category: "Sci-Fi & Tech" },
+  { name: "IBM Plex Mono", category: "Sci-Fi & Tech" },
+  { name: "Share Tech Mono", category: "Sci-Fi & Tech" },
+  { name: "Iceland", category: "Sci-Fi & Tech" },
+  { name: "gruppo", category: "Sci-Fi & Tech" },
+  { name: "Gruppo", category: "Sci-Fi & Tech" },
+  { name: "Jura", category: "Sci-Fi & Tech" },
+
+  // --- IMPACT, BRUTALISTE & AFFICHE ---
+  { name: "Impact", category: "Impact & Gras", system: true },
+  { name: "Comic Sans MS", category: "Fun & Cartoon", system: true },
+  { name: "Papyrus", category: "Rétro, Pixel & Western", system: true },
+  { name: "Times New Roman", category: "Serif & Luxe", system: true },
+  { name: "Courier New", category: "Rétro, Pixel & Western", system: true },
+  { name: "Georgia", category: "Serif & Luxe", system: true },
+  { name: "Russo One", category: "Impact & Gras" },
+  { name: "Passion One", category: "Impact & Gras" },
+  { name: "Paytone One", category: "Impact & Gras" },
+  { name: "Fugaz One", category: "Impact & Gras" },
+  { name: "Racing Sans One", category: "Impact & Gras" },
+  { name: "Contrail One", category: "Impact & Gras" },
+  { name: "Faster One", category: "Impact & Gras" },
+  { name: "Plaster", category: "Impact & Gras" },
+  { name: "Climate Crisis", category: "Impact & Gras" },
+  { name: "Dela Gothic One", category: "Impact & Gras" },
+  { name: "Syne", category: "Impact & Gras" },
+  { name: "Big Shoulders Display", category: "Impact & Gras" },
+  { name: "Saira Stencil One", category: "Impact & Gras" },
+  { name: "Bungee Hairline", category: "Sci-Fi & Tech" },
+  { name: "Codystar", category: "Fun & Cartoon" },
+  { name: "Raleway Dots", category: "Sci-Fi & Tech" },
+  { name: "Jacques Francois Shadow", category: "Serif & Luxe" },
+  { name: "Ribeye Marrow", category: "Fun & Cartoon" },
+  { name: "Macondo", category: "Horreur & Gothique" },
+  { name: "Cinzel", category: "Serif & Luxe" },
+  { name: "Uncial Antiqua", category: "Horreur & Gothique" },
+  { name: "Caesar Dressing", category: "Rétro, Pixel & Western" },
+  { name: "Snowburst One", category: "Fun & Cartoon" },
+  { name: "Trade Winds", category: "Horreur & Gothique" },
+  { name: "slackey", category: "Fun & Cartoon" },
+  { name: "Slackey", category: "Fun & Cartoon" },
+  { name: "Kranky", category: "Fun & Cartoon" },
+  { name: "Sunshiney", category: "Manuscrit & Calligraphie" },
+  { name: "Fontdiner Swanky", category: "Rétro, Pixel & Western" },
+  { name: "Cherry Cream Soda", category: "Fun & Cartoon" },
+  { name: "Crafty Girls", category: "Manuscrit & Calligraphie" },
+  { name: "Schoolbell", category: "Manuscrit & Calligraphie" },
+  { name: "Walter Turncoat", category: "Manuscrit & Calligraphie" },
+  { name: "Coming Soon", category: "Manuscrit & Calligraphie" },
+  { name: "Annie Use Your Telescope", category: "Manuscrit & Calligraphie" },
+  { name: "Love Ya Like A Sister", category: "Fun & Cartoon" },
+  { name: "mountains of christmas", category: "Fun & Cartoon" },
+  { name: "Mountains of Christmas", category: "Fun & Cartoon" }
+].filter((f, idx, arr) =>
+  f.name[0] === f.name[0].toUpperCase() &&
+  arr.findIndex(x => x.name.toLowerCase() === f.name.toLowerCase()) === idx
+);
+
+// Cache des polices chargées dynamiquement
+window.LOADED_FONTS = new Set(["Impact", "Comic Sans MS", "Papyrus", "Times New Roman", "Courier New", "Georgia"]);
+
+// Fonction utilitaire pour charger à la volée une police Google Font
+window.loadGoogleFont = function(fontName) {
+  if (!fontName || window.LOADED_FONTS.has(fontName)) return Promise.resolve();
+  
+  const fontObj = window.FONT_CATALOG.find(f => f.name.toLowerCase() === fontName.toLowerCase());
+  if (fontObj && fontObj.system) {
+    window.LOADED_FONTS.add(fontName);
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    const formattedName = fontName.trim().replace(/ /g, "+");
+    const linkId = `gfont-${formattedName.toLowerCase()}`;
+    if (document.getElementById(linkId)) {
+      window.LOADED_FONTS.add(fontName);
+      return resolve();
+    }
+
+    const link = document.createElement("link");
+    link.id = linkId;
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${formattedName}:wght@400;700;900&display=swap`;
+    link.onload = () => {
+      window.LOADED_FONTS.add(fontName);
+      resolve();
+    };
+    link.onerror = () => {
+      // Résolution même si erreur réseau pour ne pas bloquer l'interface
+      window.LOADED_FONTS.add(fontName);
+      resolve();
+    };
+    document.head.appendChild(link);
+  });
+};
+
+
+
+/* ===============================================================
+   2. SERVICE TEMPS RÉEL FIRESTORE & FALLBACK MULTI-ONGLETS
+   =============================================================== */
+/**
+ * Firebase Firestore & Realtime Sync Engine for FontKahoot
+ * Supporte :
+ * 1. Mode Firestore réel (quand l'utilisateur configure son projet Firebase)
+ * 2. Mode Démo Locale temps réel automatique via BroadcastChannel & LocalStorage (permet de jouer immédiatement dans plusieurs onglets)
+ */
+
+class RealtimeGameService {
+  constructor() {
+    this.storageKey = 'font_kahoot_firebase_config';
+    this.localStateKey = 'font_kahoot_local_rooms';
+    this.broadcast = null;
+    this.firebaseApp = null;
+    this.firestore = null;
+    this.activeRoomListeners = [];
+    this.activeSubmissionsListeners = [];
+    this.activePlayersListeners = [];
+
+    // Initialisation BroadcastChannel pour le temps réel local instantané
+    if (typeof BroadcastChannel !== 'undefined') {
+      this.broadcast = new BroadcastChannel('font_kahoot_realtime_sync');
+      this.broadcast.onmessage = (event) => {
+        this.handleLocalBroadcast(event.data);
+      };
+    }
+
+    // Écoute des changements de storage pour compatibilité multi-onglets
+    window.addEventListener('storage', (e) => {
+      if (e.key === this.localStateKey && !this.firestore) {
+        this.triggerLocalListeners();
+      }
+    });
+
+    this.initFirebaseIfConfigured();
+  }
+
+  getFirebaseConfig() {
+    const raw = localStorage.getItem(this.storageKey);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  saveFirebaseConfig(config) {
+    if (!config || !config.projectId) {
+      throw new Error("Configuration Firebase invalide : le champ projectId est obligatoire.");
+    }
+    localStorage.setItem(this.storageKey, JSON.stringify(config));
+    return this.initFirebaseIfConfigured();
+  }
+
+  clearFirebaseConfig() {
+    localStorage.removeItem(this.storageKey);
+    this.firebaseApp = null;
+    this.firestore = null;
+  }
+
+  isFirestoreActive() {
+    return !!this.firestore;
+  }
+
+  initFirebaseIfConfigured() {
+    const config = this.getFirebaseConfig();
+    if (!config || !window.firebase) {
+      this.firestore = null;
+      return false;
+    }
+
+    try {
+      if (!firebase.apps.length) {
+        this.firebaseApp = firebase.initializeApp(config);
+      } else {
+        this.firebaseApp = firebase.app();
+      }
+      this.firestore = firebase.firestore();
+      console.log("✅ Connecté avec succès à Firebase Firestore !");
+      return true;
+    } catch (err) {
+      console.warn("⚠️ Impossible d'initialiser Firebase, repli sur le mode Local :", err);
+      this.firestore = null;
+      return false;
+    }
+  }
+
+  // --- GESTION LOCALE (FALLBACK TEMPS RÉEL) ---
+  getLocalState() {
+    const data = localStorage.getItem(this.localStateKey);
+    return data ? JSON.parse(data) : {};
+  }
+
+  setLocalState(state) {
+    localStorage.setItem(this.localStateKey, JSON.stringify(state));
+    if (this.broadcast) {
+      this.broadcast.postMessage({ type: 'SYNC_STATE', timestamp: Date.now() });
+    }
+    this.triggerLocalListeners();
+  }
+
+  handleLocalBroadcast(msg) {
+    if (msg.type === 'SYNC_STATE') {
+      this.triggerLocalListeners();
+    }
+  }
+
+  triggerLocalListeners() {
+    const state = this.getLocalState();
+    this.activeRoomListeners.forEach(({ code, cb }) => {
+      const room = state[code] || null;
+      cb(room);
+    });
+    this.activeSubmissionsListeners.forEach(({ code, cb }) => {
+      const room = state[code];
+      const subs = room && room.submissions ? Object.values(room.submissions) : [];
+      cb(subs);
+    });
+    this.activePlayersListeners.forEach(({ code, cb }) => {
+      const room = state[code];
+      const players = room && room.players ? Object.values(room.players) : [];
+      cb(players);
+    });
+  }
+
+  // --- API PARTIES MULTIJOUEURS ---
+
+  /**
+   * Créer ou mettre à jour une salle de jeu
+   */
+  async createOrUpdateRoom(code, roomData) {
+    code = code.trim().toUpperCase();
+    const payload = {
+      code,
+      theme: roomData.theme || "Thème par défaut",
+      sampleText: roomData.sampleText || "Texte exemple",
+      status: roomData.status || "lobby", // lobby, submitting, presenting, leaderboard
+      currentSubmissionIndex: roomData.currentSubmissionIndex ?? 0,
+      votingOpen: roomData.votingOpen ?? false,
+      updatedAt: Date.now()
+    };
+
+    if (this.firestore) {
+      await this.firestore.collection('games').doc(code).set(payload, { merge: true });
+    } else {
+      const state = this.getLocalState();
+      state[code] = {
+        ...(state[code] || {}),
+        ...payload,
+        players: state[code]?.players || {},
+        submissions: state[code]?.submissions || {}
+      };
+      this.setLocalState(state);
+    }
+    return payload;
+  }
+
+  /**
+   * Écoute en temps réel des changements d'une salle
+   */
+  listenRoom(code, callback) {
+    code = code.trim().toUpperCase();
+
+    if (this.firestore) {
+      const unsub = this.firestore.collection('games').doc(code).onSnapshot((doc) => {
+        if (doc.exists) {
+          callback(doc.data());
+        } else {
+          callback(null);
+        }
+      }, (err) => {
+        console.error("Erreur écoute Firestore Room :", err);
+      });
+      return unsub;
+    } else {
+      const entry = { code, cb: callback };
+      this.activeRoomListeners.push(entry);
+      // Callback immédiat
+      const state = this.getLocalState();
+      callback(state[code] || null);
+
+      return () => {
+        this.activeRoomListeners = this.activeRoomListeners.filter(e => e !== entry);
+      };
+    }
+  }
+
+  /**
+   * Écoute en temps réel des soumissions
+   */
+  listenSubmissions(code, callback) {
+    code = code.trim().toUpperCase();
+
+    if (this.firestore) {
+      const unsub = this.firestore.collection('games').doc(code)
+        .collection('submissions')
+        .onSnapshot((snapshot) => {
+          const list = [];
+          snapshot.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
+          callback(list);
+        }, (err) => {
+          console.error("Erreur écoute submissions :", err);
+        });
+      return unsub;
+    } else {
+      const entry = { code, cb: callback };
+      this.activeSubmissionsListeners.push(entry);
+      const state = this.getLocalState();
+      const subs = state[code]?.submissions ? Object.values(state[code].submissions) : [];
+      callback(subs);
+
+      return () => {
+        this.activeSubmissionsListeners = this.activeSubmissionsListeners.filter(e => e !== entry);
+      };
+    }
+  }
+
+  /**
+   * Écoute en temps réel des joueurs connectés
+   */
+  listenPlayers(code, callback) {
+    code = code.trim().toUpperCase();
+
+    if (this.firestore) {
+      const unsub = this.firestore.collection('games').doc(code)
+        .collection('players')
+        .onSnapshot((snapshot) => {
+          const list = [];
+          snapshot.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
+          callback(list);
+        });
+      return unsub;
+    } else {
+      const entry = { code, cb: callback };
+      this.activePlayersListeners.push(entry);
+      const state = this.getLocalState();
+      const players = state[code]?.players ? Object.values(state[code].players) : [];
+      callback(players);
+
+      return () => {
+        this.activePlayersListeners = this.activePlayersListeners.filter(e => e !== entry);
+      };
+    }
+  }
+
+  /**
+   * Enregistrer / rejoindre un joueur
+   */
+  async joinPlayer(code, player) {
+    code = code.trim().toUpperCase();
+    const playerData = {
+      id: player.id,
+      name: player.name,
+      joinedAt: Date.now()
+    };
+
+    if (this.firestore) {
+      await this.firestore.collection('games').doc(code)
+        .collection('players').doc(player.id).set(playerData);
+    } else {
+      const state = this.getLocalState();
+      if (!state[code]) {
+        state[code] = {
+          code,
+          theme: "Thème libre",
+          sampleText: "Exemple de texte",
+          status: "lobby",
+          players: {},
+          submissions: {}
+        };
+      }
+      state[code].players[player.id] = playerData;
+      this.setLocalState(state);
+    }
+  }
+
+  /**
+   * Soumettre un choix de police
+   */
+  async submitFont(code, submission) {
+    code = code.trim().toUpperCase();
+    const subData = {
+      id: submission.id || `${submission.playerId}_sub`,
+      playerId: submission.playerId,
+      playerName: submission.playerName,
+      title: submission.title || "Sans titre",
+      font: submission.font,
+      votes: {}, // playerId -> 'oui' | 'non'
+      ouiCount: 0,
+      nonCount: 0,
+      submittedAt: Date.now()
+    };
+
+    if (this.firestore) {
+      await this.firestore.collection('games').doc(code)
+        .collection('submissions').doc(subData.id).set(subData);
+    } else {
+      const state = this.getLocalState();
+      if (!state[code]) state[code] = { code, submissions: {} };
+      if (!state[code].submissions) state[code].submissions = {};
+      state[code].submissions[subData.id] = subData;
+      this.setLocalState(state);
+    }
+    return subData;
+  }
+
+  /**
+   * Voter Oui ou Non pour une soumission
+   */
+  async castVote(code, submissionId, playerId, voteValue) {
+    code = code.trim().toUpperCase();
+    if (voteValue !== 'oui' && voteValue !== 'non') return;
+
+    if (this.firestore) {
+      const subRef = this.firestore.collection('games').doc(code)
+        .collection('submissions').doc(submissionId);
+
+      await this.firestore.runTransaction(async (transaction) => {
+        const doc = await transaction.get(subRef);
+        if (!doc.exists) return;
+        const data = doc.data();
+        const votes = data.votes || {};
+        votes[playerId] = voteValue;
+
+        // Recalcul du total des votes
+        let oui = 0;
+        let non = 0;
+        Object.values(votes).forEach(v => {
+          if (v === 'oui') oui++;
+          if (v === 'non') non++;
+        });
+
+        transaction.update(subRef, {
+          votes: votes,
+          ouiCount: oui,
+          nonCount: non
+        });
+      });
+    } else {
+      const state = this.getLocalState();
+      const room = state[code];
+      if (room && room.submissions && room.submissions[submissionId]) {
+        const sub = room.submissions[submissionId];
+        if (!sub.votes) sub.votes = {};
+        sub.votes[playerId] = voteValue;
+
+        let oui = 0;
+        let non = 0;
+        Object.values(sub.votes).forEach(v => {
+          if (v === 'oui') oui++;
+          if (v === 'non') non++;
+        });
+        sub.ouiCount = oui;
+        sub.nonCount = non;
+        this.setLocalState(state);
+      }
+    }
+  }
+
+  /**
+   * Réinitialiser la manche (nouvelle manche avec nouveau thème/texte)
+   */
+  async resetRound(code, newTheme, newSampleText) {
+    code = code.trim().toUpperCase();
+
+    if (this.firestore) {
+      const roomRef = this.firestore.collection('games').doc(code);
+      await roomRef.update({
+        theme: newTheme,
+        sampleText: newSampleText,
+        status: "submitting",
+        currentSubmissionIndex: 0,
+        votingOpen: false,
+        updatedAt: Date.now()
+      });
+
+      // Supprimer les anciennes soumissions
+      const subs = await roomRef.collection('submissions').get();
+      const batch = this.firestore.batch();
+      subs.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+    } else {
+      const state = this.getLocalState();
+      if (state[code]) {
+        state[code].theme = newTheme;
+        state[code].sampleText = newSampleText;
+        state[code].status = "submitting";
+        state[code].currentSubmissionIndex = 0;
+        state[code].votingOpen = false;
+        state[code].submissions = {};
+        this.setLocalState(state);
+      }
+    }
+  }
+}
+
+// Instance globale exportée
+
+
+/* ===============================================================
+   2. MOTEUR TEMPS RÉEL CLOUD 100% GRATUIT & AUTONOME (PC <-> TÉL)
+   =============================================================== */
+
+/* ===============================================================
+   2. MOTEUR TEMPS RÉEL CLOUD 100% GRATUIT & AUTONOME (PC <-> TÉL)
+   Utilise un réseau MQTT WebSockets mondial sécurisé et gratuit.
+   Aucune inscription, aucune carte, aucune clé d'API requise !
+   =============================================================== */
+class AutonomousCloudGameService {
+  constructor() {
+    this.storageKey = 'font_kahoot_firebase_config';
+    this.localStateKey = 'font_kahoot_local_rooms';
+    this.mqttBrokers = [
+      'wss://broker.emqx.io:8084/mqtt',
+      'wss://broker.hivemq.com:8884/mqtt'
+    ];
+    this.currentBrokerIdx = 0;
+    this.mqttClient = null;
+    this.connected = false;
+    this.activeRoomCode = null;
+    this.role = null; // 'admin', 'player', 'presentation'
+    this.currentRoomState = null;
+
+    this.activeRoomListeners = [];
+    this.activeSubmissionsListeners = [];
+    this.activePlayersListeners = [];
+
+    // BroadcastChannel pour synchro locale instantanée en plus du cloud
+    this.localBroadcast = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('font_kahoot_realtime_sync') : null;
+    if (this.localBroadcast) {
+      this.localBroadcast.onmessage = (event) => {
+        if (event.data && event.data.type === 'SYNC_STATE') {
+          this.triggerLocalListeners();
+        }
+      };
+    }
+
+    // Initialiser la connexion Cloud MQTT
+    this.connectCloudMQTT();
+
+    // Heartbeat de synchronisation pour l'ADMIN (diffuse l'état toutes les 2.5 secondes)
+    setInterval(() => {
+      if (this.role === 'admin' && this.activeRoomCode && this.currentRoomState) {
+        this.publishRoomState(this.activeRoomCode, this.currentRoomState);
+      }
+    }, 2500);
+  }
+
+  // --- GESTION DU CLOUD MQTT ---
+  connectCloudMQTT() {
+    const brokerUrl = this.mqttBrokers[this.currentBrokerIdx];
+    const clientId = 'fk_' + Math.random().toString(16).substring(2, 10);
+    console.log(`🌐 Connexion au Cloud Temps Réel gratuit (${brokerUrl})...`);
+
+    try {
+      if (typeof mqtt === 'undefined') {
+        console.warn("MQTT library not loaded yet, will retry...");
+        setTimeout(() => this.connectCloudMQTT(), 1000);
+        return;
+      }
+
+      this.mqttClient = mqtt.connect(brokerUrl, {
+        clientId,
+        clean: true,
+        connectTimeout: 5000,
+        reconnectPeriod: 2500
+      });
+
+      this.mqttClient.on('connect', () => {
+        this.connected = true;
+        console.log("✅ Connecté au Cloud Temps Réel mondial (PC & Tél synchronisés) !");
+        this.updateStatusBadge(true);
+        if (this.activeRoomCode) {
+          this.subscribeRoomTopics(this.activeRoomCode);
+          this.sendEvent(this.activeRoomCode, { type: 'REQUEST_SYNC' });
+        }
+      });
+
+      this.mqttClient.on('error', (err) => {
+        console.warn("⚠️ Erreur broker MQTT :", err.message);
+        this.fallbackNextBroker();
+      });
+
+      this.mqttClient.on('close', () => {
+        this.connected = false;
+        this.updateStatusBadge(false);
+      });
+
+      this.mqttClient.on('message', (topic, payload) => {
+        try {
+          const data = JSON.parse(payload.toString());
+          this.handleIncomingMqttMessage(topic, data);
+        } catch (e) {
+          console.error("Erreur parsing message MQTT :", e);
+        }
+      });
+    } catch (err) {
+      console.warn("Erreur init MQTT :", err);
+      this.fallbackNextBroker();
+    }
+  }
+
+  fallbackNextBroker() {
+    if (this.mqttClient) {
+      try { this.mqttClient.end(true); } catch(e) {}
+    }
+    this.currentBrokerIdx = (this.currentBrokerIdx + 1) % this.mqttBrokers.length;
+    setTimeout(() => this.connectCloudMQTT(), 2000);
+  }
+
+  subscribeRoomTopics(code) {
+    if (!this.mqttClient || !this.connected) return;
+    code = code.trim().toUpperCase();
+    const stateTopic = `fontkahoot/v2/${code}/state`;
+    const eventsTopic = `fontkahoot/v2/${code}/events`;
+    this.mqttClient.subscribe([stateTopic, eventsTopic], { qos: 0 });
+    console.log(`📡 Abonné aux canaux Cloud : ${stateTopic} & ${eventsTopic}`);
+  }
+
+  handleIncomingMqttMessage(topic, data) {
+    const code = this.activeRoomCode;
+    if (!code) return;
+
+    // Réception de l'état complet depuis le Cloud
+    if (topic === `fontkahoot/v2/${code}/state`) {
+      if (data && data.code === code) {
+        // Si je suis joueur ou présentation, ou si la mise à jour est plus récente
+        if (this.role !== 'admin' || !this.currentRoomState || data.updatedAt >= (this.currentRoomState.updatedAt || 0)) {
+          this.currentRoomState = data;
+          this.saveLocalRoom(code, data);
+          this.triggerLocalListeners();
+        }
+      }
+      return;
+    }
+
+    // Réception des événements (JOIN, SUBMIT, VOTE, REQUEST_SYNC)
+    if (topic === `fontkahoot/v2/${code}/events`) {
+      if (data.code !== code) return;
+
+      if (data.type === 'REQUEST_SYNC') {
+        // Si j'ai l'état, je le renvoie immédiatement au demandeur
+        if (this.currentRoomState && (this.role === 'admin' || this.currentRoomState.status)) {
+          this.publishRoomState(code, this.currentRoomState);
+        }
+        return;
+      }
+
+      // Si je suis l'ADMIN, je traite l'action de manière autoritaire et je republie l'état
+      if (this.role === 'admin') {
+        const room = this.currentRoomState || this.getLocalRoom(code) || {
+          code, theme: "Thème", sampleText: "Texte", status: "lobby", players: {}, submissions: {}
+        };
+
+        if (data.type === 'JOIN' && data.player) {
+          room.players = room.players || {};
+          room.players[data.player.id] = data.player;
+          room.updatedAt = Date.now();
+          this.currentRoomState = room;
+          this.saveLocalRoom(code, room);
+          this.publishRoomState(code, room);
+          this.triggerLocalListeners();
+        }
+
+        if (data.type === 'SUBMIT' && data.submission) {
+          room.submissions = room.submissions || {};
+          room.submissions[data.submission.id] = data.submission;
+          room.updatedAt = Date.now();
+          this.currentRoomState = room;
+          this.saveLocalRoom(code, room);
+          this.publishRoomState(code, room);
+          this.triggerLocalListeners();
+        }
+
+        if (data.type === 'VOTE' && data.submissionId && data.playerId) {
+          if (room.submissions && room.submissions[data.submissionId]) {
+            const sub = room.submissions[data.submissionId];
+            sub.votes = sub.votes || {};
+            sub.votes[data.playerId] = data.voteValue;
+
+            let oui = 0, non = 0;
+            Object.values(sub.votes).forEach(v => {
+              if (v === 'oui') oui++;
+              if (v === 'non') non++;
+            });
+            sub.ouiCount = oui;
+            sub.nonCount = non;
+            room.updatedAt = Date.now();
+            this.currentRoomState = room;
+            this.saveLocalRoom(code, room);
+            this.publishRoomState(code, room);
+            this.triggerLocalListeners();
+          }
+        }
+      }
+    }
+  }
+
+  publishRoomState(code, state) {
+    if (!this.mqttClient || !this.connected) return;
+    code = code.trim().toUpperCase();
+    const topic = `fontkahoot/v2/${code}/state`;
+    try {
+      this.mqttClient.publish(topic, JSON.stringify(state), { qos: 0, retain: false });
+    } catch(e) {
+      console.warn("Erreur publishRoomState :", e);
+    }
+  }
+
+  sendEvent(code, eventData) {
+    code = code.trim().toUpperCase();
+    eventData.code = code;
+    eventData.timestamp = Date.now();
+
+    // Envoi via Cloud MQTT
+    if (this.mqttClient && this.connected) {
+      const topic = `fontkahoot/v2/${code}/events`;
+      this.mqttClient.publish(topic, JSON.stringify(eventData), { qos: 0 });
+    }
+
+    // Traitement local immédiat si même appareil
+    if (this.localBroadcast) {
+      this.localBroadcast.postMessage({ type: 'EVENT', ...eventData });
+    }
+  }
+
+  updateStatusBadge(isOnline) {
+    const badgeDb = document.getElementById('badge-db-status');
+    if (!badgeDb) return;
+    if (isOnline) {
+      badgeDb.textContent = '🟢 En Ligne (PC & Tél Synchronisés)';
+      badgeDb.className = 'badge-tag badge-firestore';
+      badgeDb.title = 'Connecté au Cloud temps réel mondial gratuit';
+    } else {
+      badgeDb.textContent = '⚡ Mode Local (Connexion Cloud...)';
+      badgeDb.className = 'badge-tag badge-demo';
+    }
+  }
+
+  // --- STOCKAGE LOCAL DE SECOURS ---
+  getLocalState() {
+    const raw = localStorage.getItem(this.localStateKey);
+    return raw ? JSON.parse(raw) : {};
+  }
+
+  getLocalRoom(code) {
+    code = code.trim().toUpperCase();
+    return this.getLocalState()[code] || null;
+  }
+
+  saveLocalRoom(code, room) {
+    code = code.trim().toUpperCase();
+    const state = this.getLocalState();
+    state[code] = room;
+    localStorage.setItem(this.localStateKey, JSON.stringify(state));
+    if (this.localBroadcast) {
+      this.localBroadcast.postMessage({ type: 'SYNC_STATE', timestamp: Date.now() });
+    }
+  }
+
+  triggerLocalListeners() {
+    const code = this.activeRoomCode;
+    if (!code) return;
+    const room = this.currentRoomState || this.getLocalRoom(code);
+    this.activeRoomListeners.forEach(({ cb }) => cb(room));
+    
+    const subs = room && room.submissions ? Object.values(room.submissions) : [];
+    this.activeSubmissionsListeners.forEach(({ cb }) => cb(subs));
+
+    const players = room && room.players ? Object.values(room.players) : [];
+    this.activePlayersListeners.forEach(({ cb }) => cb(players));
+  }
+
+  // --- API PUBLIQUE UTILISÉE PAR APP.JS ---
+  setRoleAndRoom(role, code) {
+    this.role = role;
+    this.activeRoomCode = code.trim().toUpperCase();
+    if (this.connected) {
+      this.subscribeRoomTopics(this.activeRoomCode);
+      this.sendEvent(this.activeRoomCode, { type: 'REQUEST_SYNC' });
+    }
+  }
+
+  async createOrUpdateRoom(code, roomData) {
+    code = code.trim().toUpperCase();
+    this.activeRoomCode = code;
+    this.role = 'admin';
+
+    const existing = this.currentRoomState || this.getLocalRoom(code) || {};
+    const updated = {
+      ...existing,
+      code,
+      theme: roomData.theme || existing.theme || "Thème par défaut",
+      sampleText: roomData.sampleText || existing.sampleText || "Texte exemple",
+      status: roomData.status || existing.status || "lobby",
+      currentSubmissionIndex: roomData.currentSubmissionIndex ?? existing.currentSubmissionIndex ?? 0,
+      votingOpen: roomData.votingOpen ?? existing.votingOpen ?? false,
+      players: existing.players || {},
+      submissions: existing.submissions || {},
+      updatedAt: Date.now()
+    };
+
+    this.currentRoomState = updated;
+    this.saveLocalRoom(code, updated);
+    this.publishRoomState(code, updated);
+    this.triggerLocalListeners();
+    return updated;
+  }
+
+  listenRoom(code, callback) {
+    code = code.trim().toUpperCase();
+    this.activeRoomCode = code;
+    const entry = { code, cb: callback };
+    this.activeRoomListeners.push(entry);
+
+    if (this.connected) {
+      this.subscribeRoomTopics(code);
+      this.sendEvent(code, { type: 'REQUEST_SYNC' });
+    }
+
+    // Réponse immédiate depuis le cache
+    const room = this.currentRoomState || this.getLocalRoom(code);
+    callback(room);
+
+    return () => {
+      this.activeRoomListeners = this.activeRoomListeners.filter(e => e !== entry);
+    };
+  }
+
+  listenSubmissions(code, callback) {
+    code = code.trim().toUpperCase();
+    const entry = { code, cb: callback };
+    this.activeSubmissionsListeners.push(entry);
+
+    const room = this.currentRoomState || this.getLocalRoom(code);
+    const subs = room && room.submissions ? Object.values(room.submissions) : [];
+    callback(subs);
+
+    return () => {
+      this.activeSubmissionsListeners = this.activeSubmissionsListeners.filter(e => e !== entry);
+    };
+  }
+
+  listenPlayers(code, callback) {
+    code = code.trim().toUpperCase();
+    const entry = { code, cb: callback };
+    this.activePlayersListeners.push(entry);
+
+    const room = this.currentRoomState || this.getLocalRoom(code);
+    const players = room && room.players ? Object.values(room.players) : [];
+    callback(players);
+
+    return () => {
+      this.activePlayersListeners = this.activePlayersListeners.filter(e => e !== entry);
+    };
+  }
+
+  async joinPlayer(code, player) {
+    code = code.trim().toUpperCase();
+    this.setRoleAndRoom('player', code);
+    this.sendEvent(code, {
+      type: 'JOIN',
+      player: { id: player.id, name: player.name, joinedAt: Date.now() }
+    });
+  }
+
+  async submitFont(code, submission) {
+    code = code.trim().toUpperCase();
+    const subData = {
+      id: submission.id || `${submission.playerId}_sub`,
+      playerId: submission.playerId,
+      playerName: submission.playerName,
+      title: submission.title || "Sans titre",
+      font: submission.font,
+      votes: {},
+      ouiCount: 0,
+      nonCount: 0,
+      submittedAt: Date.now()
+    };
+
+    this.sendEvent(code, {
+      type: 'SUBMIT',
+      submission: subData
+    });
+    return subData;
+  }
+
+  async castVote(code, submissionId, playerId, voteValue) {
+    code = code.trim().toUpperCase();
+    this.sendEvent(code, {
+      type: 'VOTE',
+      submissionId,
+      playerId,
+      voteValue
+    });
+  }
+
+  async resetRound(code, newTheme, newSampleText) {
+    code = code.trim().toUpperCase();
+    const existing = this.currentRoomState || this.getLocalRoom(code) || {};
+    existing.theme = newTheme;
+    existing.sampleText = newSampleText;
+    existing.status = 'submitting';
+    existing.currentSubmissionIndex = 0;
+    existing.votingOpen = false;
+    existing.submissions = {};
+    existing.updatedAt = Date.now();
+
+    this.currentRoomState = existing;
+    this.saveLocalRoom(code, existing);
+    this.publishRoomState(code, existing);
+    this.triggerLocalListeners();
+  }
+
+  isFirestoreActive() {
+    return false; // Utilise le Cloud automatique
+  }
+
+  getFirebaseConfig() { return null; }
+  saveFirebaseConfig() { return false; }
+  clearFirebaseConfig() {}
+}
+
+window.gameService = new AutonomousCloudGameService();
+
+
+/* ===============================================================
+   3. LOGIQUE GLOBALE DU JEU (ADMIN, PRÉSENTATION, JOUEUR)
+   =============================================================== */
+const appState = {
+  role: null, // 'admin', 'presentation', 'player'
+  gameCode: '',
+  playerId: localStorage.getItem('font_kahoot_player_id') || `p_${Math.random().toString(36).substring(2, 9)}`,
+  playerName: localStorage.getItem('font_kahoot_player_name') || '',
+  currentRoom: null,
+  submissions: [],
+  players: [],
+  selectedFont: 'Montserrat',
+  activeCategory: 'Toutes',
+  searchTerm: '',
+  mySubmission: null,
+  myCurrentVote: null,
+  unsubRoom: null,
+  unsubSubs: null,
+  unsubPlayers: null
+};
+
+// Sauvegarder l'ID joueur
+localStorage.setItem('font_kahoot_player_id', appState.playerId);
+
+// DOM Elements
+const screens = {
+  login: document.getElementById('screen-login'),
+  admin: document.getElementById('screen-admin'),
+  presentation: document.getElementById('screen-presentation'),
+  player: document.getElementById('screen-player')
+};
+
+// --- INITIALISATION AU CHARGEMENT ---
+window.addEventListener('DOMContentLoaded', () => {
+  setupNavigation();
+  setupFirebaseModal();
+  setupLogin();
+  setupAdmin();
+  setupPlayer();
+  setupPresentation();
+  updateStatusBadges();
+  
+  // Précharger quelques polices courantes
+  ['Roboto', 'Montserrat', 'Bangers', 'Creepster', 'Playfair Display', 'Press Start 2P'].forEach(f => window.loadGoogleFont(f));
+});
+
+function showScreen(screenName) {
+  Object.keys(screens).forEach(key => {
+    if (screens[key]) {
+      screens[key].classList.toggle('active', key === screenName);
+    }
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function updateStatusBadges() {
+  const badgeDb = document.getElementById('badge-db-status');
+  if (badgeDb) {
+    if (window.gameService.isFirestoreActive()) {
+      badgeDb.textContent = '🔥 Firestore Connecté';
+      badgeDb.className = 'badge-tag badge-firestore';
+    } else {
+      badgeDb.textContent = '⚡ Mode Local (Multi-onglets)';
+      badgeDb.className = 'badge-tag badge-demo';
+    }
+  }
+
+  const badgeRoom = document.getElementById('badge-room-code');
+  if (badgeRoom) {
+    if (appState.gameCode) {
+      badgeRoom.style.display = 'inline-flex';
+      badgeRoom.textContent = `Partie : ${appState.gameCode}`;
+    } else {
+      badgeRoom.style.display = 'none';
+    }
+  }
+}
+
+// --- NAVIGATION & MENU ---
+function setupNavigation() {
+  const btnHome = document.getElementById('nav-logo');
+  if (btnHome) {
+    btnHome.addEventListener('click', () => {
+      if (confirm("Revenir à l'écran d'accueil ?")) {
+        cleanupListeners();
+        appState.role = null;
+        appState.gameCode = '';
+        updateStatusBadges();
+        showScreen('login');
+      }
+    });
+  }
+
+  const btnConfig = document.getElementById('btn-open-firebase-modal');
+  if (btnConfig) {
+    btnConfig.addEventListener('click', () => {
+      document.getElementById('modal-firebase').classList.add('active');
+    });
+  }
+}
+
+function cleanupListeners() {
+  if (appState.unsubRoom) { appState.unsubRoom(); appState.unsubRoom = null; }
+  if (appState.unsubSubs) { appState.unsubSubs(); appState.unsubSubs = null; }
+  if (appState.unsubPlayers) { appState.unsubPlayers(); appState.unsubPlayers = null; }
+}
+
+// --- MODAL CONFIGURATION FIREBASE ---
+function setupFirebaseModal() {
+  const modal = document.getElementById('modal-firebase');
+  const btnClose = document.getElementById('btn-close-firebase-modal');
+  const form = document.getElementById('form-firebase-config');
+  const btnClear = document.getElementById('btn-clear-firebase-config');
+
+  const existingConfig = window.gameService.getFirebaseConfig();
+  if (existingConfig) {
+    document.getElementById('fb-apiKey').value = existingConfig.apiKey || '';
+    document.getElementById('fb-authDomain').value = existingConfig.authDomain || '';
+    document.getElementById('fb-projectId').value = existingConfig.projectId || '';
+    document.getElementById('fb-storageBucket').value = existingConfig.storageBucket || '';
+    document.getElementById('fb-messagingSenderId').value = existingConfig.messagingSenderId || '';
+    document.getElementById('fb-appId').value = existingConfig.appId || '';
+  }
+
+  if (btnClose) {
+    btnClose.addEventListener('click', () => modal.classList.remove('active'));
+  }
+
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const config = {
+        apiKey: document.getElementById('fb-apiKey').value.trim(),
+        authDomain: document.getElementById('fb-authDomain').value.trim(),
+        projectId: document.getElementById('fb-projectId').value.trim(),
+        storageBucket: document.getElementById('fb-storageBucket').value.trim(),
+        messagingSenderId: document.getElementById('fb-messagingSenderId').value.trim(),
+        appId: document.getElementById('fb-appId').value.trim()
+      };
+
+      try {
+        const ok = window.gameService.saveFirebaseConfig(config);
+        if (ok) {
+          alert("✅ Firebase Firestore configuré avec succès ! Rechargement...");
+          window.location.reload();
+        } else {
+          alert("⚠️ Configuration sauvegardée, mais Firestore n'a pas pu s'initialiser. Vérifiez vos identifiants Firebase.");
+        }
+      } catch (err) {
+        alert("Erreur : " + err.message);
+      }
+      modal.classList.remove('active');
+      updateStatusBadges();
+    });
+  }
+
+  if (btnClear) {
+    btnClear.addEventListener('click', () => {
+      if (confirm("Réinitialiser et repasser en mode démo locale sans Firebase ?")) {
+        window.gameService.clearFirebaseConfig();
+        window.location.reload();
+      }
+    });
+  }
+}
+
+// --- ÉCRAN 1 : LOGIN & ACCUEIL ---
+function setupLogin() {
+  const codeInput = document.getElementById('login-main-code');
+  const pseudoGroup = document.getElementById('login-pseudo-group');
+  const pseudoInput = document.getElementById('login-pseudo');
+  const btnSubmit = document.getElementById('btn-login-submit');
+
+  if (pseudoInput && appState.playerName) {
+    pseudoInput.value = appState.playerName;
+  }
+
+  // Vérifier en temps réel le texte saisi
+  codeInput.addEventListener('input', () => {
+    const val = codeInput.value.trim().toUpperCase();
+    if (val === 'ADMIN' || val === 'PRESENTATION') {
+      pseudoGroup.style.display = 'none';
+      btnSubmit.textContent = val === 'ADMIN' ? '👑 Accéder au panneau ADMIN' : '📺 Ouvrir la PRESENTATION';
+      btnSubmit.className = val === 'ADMIN' ? 'btn-kahoot btn-purple btn-large' : 'btn-kahoot btn-blue btn-large';
+    } else {
+      pseudoGroup.style.display = 'block';
+      btnSubmit.textContent = '🎮 Rejoindre la partie';
+      btnSubmit.className = 'btn-kahoot btn-green btn-large';
+    }
+  });
+
+  // Liens rapides en bas de formulaire
+  document.getElementById('link-quick-admin').addEventListener('click', (e) => {
+    e.preventDefault();
+    codeInput.value = 'ADMIN';
+    codeInput.dispatchEvent(new Event('input'));
+    btnSubmit.click();
+  });
+
+  document.getElementById('link-quick-pres').addEventListener('click', (e) => {
+    e.preventDefault();
+    codeInput.value = 'PRESENTATION';
+    codeInput.dispatchEvent(new Event('input'));
+    btnSubmit.click();
+  });
+
+  // Soumission
+  btnSubmit.addEventListener('click', () => {
+    const val = codeInput.value.trim().toUpperCase();
+    if (!val) {
+      alert("Veuillez saisir un code (ADMIN, PRESENTATION ou un CODE DE PARTIE).");
+      return;
+    }
+
+    if (val === 'ADMIN') {
+      enterAdminMode();
+    } else if (val === 'PRESENTATION') {
+      enterPresentationPrompt();
+    } else {
+      const pseudo = pseudoInput.value.trim();
+      if (!pseudo) {
+        alert("Veuillez entrer votre pseudo pour rejoindre la partie.");
+        return;
+      }
+      appState.playerName = pseudo;
+      localStorage.setItem('font_kahoot_player_name', pseudo);
+      enterPlayerMode(val);
+    }
+  });
+}
+
+// --- RÔLE : ADMIN ---
+function enterAdminMode() {
+  if (window.gameService) window.gameService.role = 'admin';
+  appState.role = 'admin';
+  showScreen('admin');
+  updateStatusBadges();
+
+  // Si aucun code de partie n'est sélectionné, en générer un par défaut
+  const adminCodeInput = document.getElementById('admin-room-code');
+  if (!adminCodeInput.value) {
+    adminCodeInput.value = 'FONT-' + Math.floor(100 + Math.random() * 900);
+  }
+  syncAdminRoom(adminCodeInput.value);
+}
+
+function syncAdminRoom(code) {
+  cleanupListeners();
+  appState.gameCode = code.toUpperCase();
+  updateStatusBadges();
+
+  appState.unsubRoom = window.gameService.listenRoom(appState.gameCode, (room) => {
+    appState.currentRoom = room;
+    renderAdminRoomUI(room);
+  });
+
+  appState.unsubSubs = window.gameService.listenSubmissions(appState.gameCode, (subs) => {
+    appState.submissions = subs;
+    renderAdminSubmissionsUI(subs);
+  });
+
+  appState.unsubPlayers = window.gameService.listenPlayers(appState.gameCode, (players) => {
+    appState.players = players;
+    const countEl = document.getElementById('admin-player-count');
+    if (countEl) countEl.textContent = `${players.length} joueur(s) connecté(s)`;
+  });
+}
+
+function setupAdmin() {
+  const codeInput = document.getElementById('admin-room-code');
+  const themeInput = document.getElementById('admin-theme-input');
+  const textInput = document.getElementById('admin-text-input');
+  const btnSaveRoom = document.getElementById('btn-admin-save-room');
+  const btnLaunchSubs = document.getElementById('btn-admin-launch-subs');
+  const btnStartPres = document.getElementById('btn-admin-start-pres');
+  const btnPrevSub = document.getElementById('btn-admin-prev-sub');
+  const btnNextSub = document.getElementById('btn-admin-next-sub');
+  const btnToggleVote = document.getElementById('btn-admin-toggle-vote');
+  const btnGoLeaderboard = document.getElementById('btn-admin-go-leaderboard');
+  const btnResetRound = document.getElementById('btn-admin-reset-round');
+
+  // Suggestions rapides pour le thème
+  document.querySelectorAll('#admin-theme-chips .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      themeInput.value = chip.dataset.val || chip.textContent;
+    });
+  });
+
+  // Suggestions rapides pour le texte d'exemple
+  document.querySelectorAll('#admin-text-chips .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      textInput.value = chip.dataset.val || chip.textContent;
+    });
+  });
+
+  // Changement de code de partie
+  codeInput.addEventListener('change', () => {
+    if (codeInput.value.trim()) {
+      syncAdminRoom(codeInput.value.trim());
+    }
+  });
+
+  // Créer / Enregistrer les paramètres de la salle
+  btnSaveRoom.addEventListener('click', async () => {
+    const code = codeInput.value.trim();
+    const theme = themeInput.value.trim() || "Thème général";
+    const sampleText = textInput.value.trim() || "Texte d'exemple";
+
+    await window.gameService.createOrUpdateRoom(code, {
+      theme,
+      sampleText,
+      status: appState.currentRoom?.status || 'lobby'
+    });
+    alert(`✅ Salle ${code} mise à jour avec succès !`);
+  });
+
+  // Lancer la phase de soumissions
+  btnLaunchSubs.addEventListener('click', async () => {
+    const theme = themeInput.value.trim() || "Thème général";
+    const sampleText = textInput.value.trim() || "Texte d'exemple";
+    await window.gameService.createOrUpdateRoom(appState.gameCode, {
+      theme,
+      sampleText,
+      status: 'submitting',
+      currentSubmissionIndex: 0,
+      votingOpen: false
+    });
+  });
+
+  // Lancer les présentations et votes
+  btnStartPres.addEventListener('click', async () => {
+    if (appState.submissions.length === 0) {
+      if (!confirm("Aucune soumission enregistrée pour le moment. Voulez-vous quand même lancer ?")) return;
+    }
+    await window.gameService.createOrUpdateRoom(appState.gameCode, {
+      status: 'presenting',
+      currentSubmissionIndex: 0,
+      votingOpen: true
+    });
+  });
+
+  // Navigation présentation
+  btnPrevSub.addEventListener('click', async () => {
+    const idx = (appState.currentRoom?.currentSubmissionIndex || 0) - 1;
+    if (idx >= 0) {
+      await window.gameService.createOrUpdateRoom(appState.gameCode, {
+        currentSubmissionIndex: idx,
+        votingOpen: true
+      });
+    }
+  });
+
+  btnNextSub.addEventListener('click', async () => {
+    const idx = (appState.currentRoom?.currentSubmissionIndex || 0) + 1;
+    if (idx < appState.submissions.length) {
+      await window.gameService.createOrUpdateRoom(appState.gameCode, {
+        currentSubmissionIndex: idx,
+        votingOpen: true
+      });
+    } else {
+      if (confirm("Dernière soumission atteinte. Passer au classement final ?")) {
+        btnGoLeaderboard.click();
+      }
+    }
+  });
+
+  // Basculer l'ouverture du vote
+  btnToggleVote.addEventListener('click', async () => {
+    const isOpen = appState.currentRoom?.votingOpen ?? true;
+    await window.gameService.createOrUpdateRoom(appState.gameCode, {
+      votingOpen: !isOpen
+    });
+  });
+
+  // Afficher le classement
+  btnGoLeaderboard.addEventListener('click', async () => {
+    await window.gameService.createOrUpdateRoom(appState.gameCode, {
+      status: 'leaderboard',
+      votingOpen: false
+    });
+  });
+
+  // Réinitialiser pour une nouvelle manche
+  btnResetRound.addEventListener('click', async () => {
+    if (confirm("Relancer une nouvelle manche ? Les votes et polices soumis seront remis à zéro, mais les joueurs restent connectés.")) {
+      const newTheme = prompt("Nouveau thème pour cette manche :", themeInput.value) || themeInput.value;
+      const newText = prompt("Nouveau texte d'exemple :", textInput.value) || textInput.value;
+      themeInput.value = newTheme;
+      textInput.value = newText;
+      await window.gameService.resetRound(appState.gameCode, newTheme, newText);
+    }
+  });
+}
+
+function renderAdminRoomUI(room) {
+  if (!room) return;
+  const statusEl = document.getElementById('admin-room-status-badge');
+  const phaseMap = {
+    lobby: '⏳ En attente (Lobby)',
+    submitting: '🎨 Création & Soumissions en cours',
+    presenting: '🎬 Présentations & Votes en cours',
+    leaderboard: '🏆 Classement Final'
+  };
+  if (statusEl) statusEl.textContent = phaseMap[room.status] || room.status;
+
+  // Mettre à jour l'état des contrôles de vote
+  const btnToggleVote = document.getElementById('btn-admin-toggle-vote');
+  if (btnToggleVote) {
+    btnToggleVote.textContent = room.votingOpen ? '🛑 Fermer le vote' : '🟢 Ouvrir le vote';
+    btnToggleVote.className = room.votingOpen ? 'btn-kahoot btn-red' : 'btn-kahoot btn-green';
+  }
+
+  // Info présentation
+  const presIdxEl = document.getElementById('admin-current-sub-label');
+  if (presIdxEl && appState.submissions.length > 0) {
+    const cur = (room.currentSubmissionIndex || 0) + 1;
+    presIdxEl.textContent = `Soumission ${cur} sur ${appState.submissions.length}`;
+  }
+}
+
+function renderAdminSubmissionsUI(subs) {
+  const container = document.getElementById('admin-submissions-list');
+  const countBadge = document.getElementById('admin-subs-count');
+  if (countBadge) countBadge.textContent = `${subs.length} reçue(s)`;
+
+  if (!container) return;
+  if (subs.length === 0) {
+    container.innerHTML = '<div style="padding:20px; text-align:center; color:#888;">Aucune police reçue pour le moment.</div>';
+    return;
+  }
+
+  container.innerHTML = subs.map((s, idx) => {
+    window.loadGoogleFont(s.font);
+    return `
+      <div style="background:#fff; border:2px solid #e0e0f0; border-radius:12px; padding:12px 16px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <strong style="color:#46178f;">#${idx + 1} « ${escapeHtml(s.title)} »</strong>
+          <span style="color:#666; font-size:0.9rem;"> par <strong>${escapeHtml(s.playerName)}</strong></span>
+          <div style="font-family:'${escapeHtml(s.font)}', sans-serif; font-size:1.3rem; margin-top:4px; color:#222;">
+            ${escapeHtml(appState.currentRoom?.sampleText || 'Exemple')}
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <span class="badge-tag" style="background:#46178f; color:#fff;">${escapeHtml(s.font)}</span>
+          <div style="margin-top:6px; font-weight:800; font-size:0.95rem;">
+            <span style="color:#26890c;">👍 ${s.ouiCount || 0}</span> &nbsp;|&nbsp; 
+            <span style="color:#e21b3c;">👎 ${s.nonCount || 0}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// --- RÔLE : PRÉSENTATION (ÉCRAN GÉANT) ---
+function enterPresentationPrompt() {
+  const code = prompt("Entrez le CODE DE LA PARTIE à projeter sur l'écran :", appState.gameCode || 'FONT-101');
+  if (!code) return;
+  enterPresentationMode(code.trim().toUpperCase());
+}
+
+function enterPresentationMode(code) {
+  if (window.gameService) window.gameService.setRoleAndRoom('presentation', code);
+  appState.role = 'presentation';
+  appState.gameCode = code;
+  showScreen('presentation');
+  updateStatusBadges();
+  cleanupListeners();
+
+  appState.unsubRoom = window.gameService.listenRoom(code, (room) => {
+    appState.currentRoom = room;
+    renderPresentationUI();
+  });
+
+  appState.unsubSubs = window.gameService.listenSubmissions(code, (subs) => {
+    appState.submissions = subs;
+    renderPresentationUI();
+  });
+
+  appState.unsubPlayers = window.gameService.listenPlayers(code, (players) => {
+    appState.players = players;
+    renderPresentationUI();
+  });
+}
+
+function setupPresentation() {
+  // Mode plein écran éventuel
+  const btnFullscreen = document.getElementById('btn-pres-fullscreen');
+  if (btnFullscreen) {
+    btnFullscreen.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    });
+  }
+}
+
+function renderPresentationUI() {
+  const room = appState.currentRoom;
+  const subs = appState.submissions;
+  const stageCard = document.getElementById('pres-stage-content');
+  if (!stageCard) return;
+
+  if (!room) {
+    stageCard.innerHTML = `
+      <div style="padding:40px; text-align:center;">
+        <h2 style="font-size:2rem; margin-bottom:12px;">En attente de la salle ${escapeHtml(appState.gameCode)}...</h2>
+        <p style="color:#666;">L'organisateur doit créer ou lancer la partie depuis le panneau ADMIN.</p>
+      </div>
+    `;
+    return;
+  }
+
+  // 1. PHASE LOBBY
+  if (room.status === 'lobby') {
+    stageCard.innerHTML = `
+      <div style="padding:40px; text-align:center;">
+        <div style="font-size:1.4rem; font-weight:800; color:#1368ce; text-transform:uppercase; margin-bottom:10px;">Rejoignez la partie !</div>
+        <div style="font-size:4.5rem; font-weight:900; color:#46178f; letter-spacing:4px; margin-bottom:20px;">
+          ${escapeHtml(room.code)}
+        </div>
+        <p style="font-size:1.3rem; color:#444; margin-bottom:30px;">
+          Connectez-vous sur votre téléphone ou ordinateur et entrez ce code de partie !
+        </p>
+        <div style="background:#f4f4fa; padding:18px 24px; border-radius:16px; display:inline-block;">
+          <strong style="font-size:1.2rem; color:#222;">${appState.players.length} Joueur(s) prêts</strong>
+          <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:12px;">
+            ${appState.players.map(p => `<span class="badge-tag badge-status" style="background:#46178f; color:#fff;">${escapeHtml(p.name)}</span>`).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // 2. PHASE SOUMISSIONS
+  if (room.status === 'submitting') {
+    stageCard.innerHTML = `
+      <div style="padding:30px; text-align:center;">
+        <div class="pres-theme-header">Thème imposé</div>
+        <div class="pres-theme-name">« ${escapeHtml(room.theme)} »</div>
+        <div class="pres-sample-text" style="font-family:'Montserrat', sans-serif;">
+          ${escapeHtml(room.sampleText)}
+        </div>
+        <div style="margin-top:30px;">
+          <div style="font-size:1.5rem; font-weight:800; color:#ffa602;">
+            🎨 Les joueurs choisissent actuellement leur meilleure police...
+          </div>
+          <div style="margin-top:16px; font-size:1.2rem; color:#555;">
+            Soumissions reçues : <strong>${subs.length} / ${appState.players.length || 1}</strong>
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // 3. PHASE PRÉSENTATION & VOTE
+  if (room.status === 'presenting') {
+    if (subs.length === 0) {
+      stageCard.innerHTML = `<div style="padding:40px; text-align:center;"><h3>Aucune soumission à présenter.</h3></div>`;
+      return;
+    }
+
+    const curIdx = Math.min(Math.max(0, room.currentSubmissionIndex || 0), subs.length - 1);
+    const sub = subs[curIdx];
+
+    // Charger la police en temps réel pour l'écran géant
+    window.loadGoogleFont(sub.font);
+
+    stageCard.innerHTML = `
+      <div class="pres-theme-header">Thème : « ${escapeHtml(room.theme)} »</div>
+      <div style="font-size:1.3rem; color:#888; margin-bottom:14px;">
+        Soumission ${curIdx + 1} sur ${subs.length}
+      </div>
+
+      <!-- TEXTE AVEC LA POLICE DU JOUEUR -->
+      <div class="pres-sample-text" style="font-family:'${escapeHtml(sub.font)}', sans-serif;">
+        ${escapeHtml(room.sampleText)}
+      </div>
+
+      <!-- INFOS JOUEUR & TITRE -->
+      <div>
+        <div class="pres-author-badge">
+          <span>« ${escapeHtml(sub.title)} »</span>
+          <span style="opacity:0.8; font-weight:600;">par ${escapeHtml(sub.playerName)}</span>
+        </div>
+      </div>
+      <div>
+        <span class="pres-font-tag">Police : <strong>${escapeHtml(sub.font)}</strong></span>
+      </div>
+
+      <!-- COMPTEUR DES VOTES EN DIRECT -->
+      <div class="pres-votes-live">
+        <div class="pres-vote-count count-oui">
+          <span>👍 OUI</span>
+          <span id="pres-oui-counter">${sub.ouiCount || 0}</span>
+        </div>
+        <div class="pres-vote-count count-non">
+          <span>👎 NON</span>
+          <span id="pres-non-counter">${sub.nonCount || 0}</span>
+        </div>
+      </div>
+
+      <div style="margin-top:20px; font-weight:700; color:${room.votingOpen ? '#26890c' : '#e21b3c'};">
+        ${room.votingOpen ? '⚡ Les votes sont OUVERTS sur vos écrans !' : '🔒 Votes clôturés pour cette soumission'}
+      </div>
+    `;
+    return;
+  }
+
+  // 4. PHASE CLASSEMENT FINAL
+  if (room.status === 'leaderboard') {
+    renderLeaderboardUI(stageCard, subs);
+  }
+}
+
+// Algorithme de classement : Le premier est celui avec le MOINS de Non et le PLUS de Oui
+function sortSubmissions(subs) {
+  return [...subs].sort((a, b) => {
+    const nonA = a.nonCount || 0;
+    const nonB = b.nonCount || 0;
+    // 1er critère : le moins de non (croissant)
+    if (nonA !== nonB) {
+      return nonA - nonB;
+    }
+    // 2ème critère en cas d'égalité : le plus de oui (décroissant)
+    const ouiA = a.ouiCount || 0;
+    const ouiB = b.ouiCount || 0;
+    return ouiB - ouiA;
+  });
+}
+
+function renderLeaderboardUI(container, subs) {
+  const ranked = sortSubmissions(subs);
+
+  // Charger les polices pour la table
+  ranked.forEach(s => window.loadGoogleFont(s.font));
+
+  const p1 = ranked[0] || null;
+  const p2 = ranked[1] || null;
+  const p3 = ranked[2] || null;
+
+  let podiumHtml = '';
+  if (ranked.length > 0) {
+    podiumHtml = `
+      <div class="podium-wrapper">
+        <!-- 2EME PLACE -->
+        <div class="podium-slot podium-2">
+          ${p2 ? `
+            <div class="podium-player-name">${escapeHtml(p2.playerName)}</div>
+            <div class="podium-sub-title">« ${escapeHtml(p2.title)} »</div>
+            <div style="font-size:0.8rem; margin-bottom:6px; color:#ddd;">${escapeHtml(p2.font)}</div>
+          ` : ''}
+          <div class="podium-pillar">2</div>
+        </div>
+
+        <!-- 1ERE PLACE (CHAMPION) -->
+        <div class="podium-slot podium-1">
+          ${p1 ? `
+            <div style="font-size:2rem; margin-bottom:4px;">👑</div>
+            <div class="podium-player-name" style="font-size:1.4rem; color:#ffd700;">${escapeHtml(p1.playerName)}</div>
+            <div class="podium-sub-title">« ${escapeHtml(p1.title)} »</div>
+            <div style="font-size:0.85rem; margin-bottom:6px; color:#fff;">${escapeHtml(p1.font)}</div>
+          ` : ''}
+          <div class="podium-pillar">1</div>
+        </div>
+
+        <!-- 3EME PLACE -->
+        <div class="podium-slot podium-3">
+          ${p3 ? `
+            <div class="podium-player-name">${escapeHtml(p3.playerName)}</div>
+            <div class="podium-sub-title">« ${escapeHtml(p3.title)} »</div>
+            <div style="font-size:0.8rem; margin-bottom:6px; color:#ddd;">${escapeHtml(p3.font)}</div>
+          ` : ''}
+          <div class="podium-pillar">3</div>
+        </div>
+      </div>
+    `;
+  }
+
+  container.innerHTML = `
+    <div style="padding:20px; text-align:center;">
+      <h2 style="font-size:2.8rem; font-weight:900; color:#46178f; margin-bottom:10px;">🏆 CLASSEMENT FINAL</h2>
+      <p style="color:#666; font-size:1.1rem; margin-bottom:20px;">
+        Critère : <strong>Le moins de Non 👎</strong>, puis le <strong>plus de Oui 👍</strong>
+      </p>
+
+      ${podiumHtml}
+
+      <table class="leaderboard-table">
+        <thead>
+          <tr>
+            <th style="width:60px;">Rang</th>
+            <th>Joueur & Titre</th>
+            <th>Police Choisie</th>
+            <th style="text-align:center; color:#26890c;">👍 OUI</th>
+            <th style="text-align:center; color:#e21b3c;">👎 NON</th>
+            <th style="text-align:center;">Score Net</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${ranked.map((s, idx) => {
+            const net = (s.ouiCount || 0) - (s.nonCount || 0);
+            return `
+              <tr>
+                <td><span class="rank-badge rank-${idx + 1}">${idx + 1}</span></td>
+                <td>
+                  <strong>${escapeHtml(s.playerName)}</strong>
+                  <div style="color:#666; font-size:0.85rem;">« ${escapeHtml(s.title)} »</div>
+                </td>
+                <td>
+                  <span style="font-family:'${escapeHtml(s.font)}', sans-serif; font-size:1.3rem;">
+                    ${escapeHtml(s.font)}
+                  </span>
+                </td>
+                <td style="text-align:center; font-weight:800; color:#26890c;">${s.ouiCount || 0}</td>
+                <td style="text-align:center; font-weight:800; color:#e21b3c;">${s.nonCount || 0}</td>
+                <td style="text-align:center; font-weight:800; color:${net >= 0 ? '#26890c' : '#e21b3c'};">
+                  ${net > 0 ? '+' + net : net}
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// --- RÔLE : JOUEUR ---
+function enterPlayerMode(code) {
+  if (window.gameService) window.gameService.setRoleAndRoom('player', code);
+  appState.role = 'player';
+  appState.gameCode = code;
+  showScreen('player');
+  updateStatusBadges();
+  cleanupListeners();
+
+  // Enregistrer le joueur
+  window.gameService.joinPlayer(code, {
+    id: appState.playerId,
+    name: appState.playerName
+  });
+
+  // Écouter la salle
+  appState.unsubRoom = window.gameService.listenRoom(code, (room) => {
+    appState.currentRoom = room;
+    renderPlayerUI();
+  });
+
+  // Écouter les soumissions
+  appState.unsubSubs = window.gameService.listenSubmissions(code, (subs) => {
+    appState.submissions = subs;
+    // Vérifier si le joueur a déjà soumis
+    appState.mySubmission = subs.find(s => s.playerId === appState.playerId) || null;
+    renderPlayerUI();
+  });
+}
+
+function setupPlayer() {
+  // Filtres de catégories pour la sélection de police
+  const catContainer = document.getElementById('player-category-filters');
+  const searchInput = document.getElementById('player-font-search');
+  const btnSubmitChoice = document.getElementById('btn-player-submit-font');
+  const titleInput = document.getElementById('player-submission-title');
+
+  // Catégories uniques issues du catalogue FONT_CATALOG
+  const categories = ['Toutes', 'Sans-Serif', 'Serif & Luxe', 'Manuscrit & Calligraphie', 'Horreur & Gothique', 'Fun & Cartoon', 'Rétro, Pixel & Western', 'Sci-Fi & Tech', 'Impact & Gras'];
+
+  if (catContainer) {
+    catContainer.innerHTML = categories.map(cat => `
+      <button class="category-pill ${cat === 'Toutes' ? 'active' : ''}" data-cat="${escapeHtml(cat)}">${escapeHtml(cat)}</button>
+    `).join('');
+
+    catContainer.addEventListener('click', (e) => {
+      const pill = e.target.closest('.category-pill');
+      if (pill) {
+        catContainer.querySelectorAll('.category-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        appState.activeCategory = pill.dataset.cat;
+        renderFontGrid();
+      }
+    });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      appState.searchTerm = searchInput.value.trim().toLowerCase();
+      renderFontGrid();
+    });
+  }
+
+  if (btnSubmitChoice) {
+    btnSubmitChoice.addEventListener('click', async () => {
+      const title = titleInput.value.trim();
+      if (!title) {
+        alert("Veuillez donner un nom ou titre à votre proposition !");
+        titleInput.focus();
+        return;
+      }
+
+      await window.gameService.submitFont(appState.gameCode, {
+        playerId: appState.playerId,
+        playerName: appState.playerName,
+        title: title,
+        font: appState.selectedFont
+      });
+
+      alert("🎉 Votre police a été soumise avec succès !");
+    });
+  }
+
+  // Votes Joueur (Boutons géants OUI / NON)
+  const btnVoteOui = document.getElementById('btn-vote-oui');
+  const btnVoteNon = document.getElementById('btn-vote-non');
+
+  if (btnVoteOui) {
+    btnVoteOui.addEventListener('click', () => sendPlayerVote('oui'));
+  }
+  if (btnVoteNon) {
+    btnVoteNon.addEventListener('click', () => sendPlayerVote('non'));
+  }
+}
+
+async function sendPlayerVote(voteValue) {
+  const room = appState.currentRoom;
+  const subs = appState.submissions;
+  if (!room || room.status !== 'presenting' || !room.votingOpen) {
+    alert("Le vote n'est pas ouvert pour le moment.");
+    return;
+  }
+
+  const curIdx = room.currentSubmissionIndex || 0;
+  const sub = subs[curIdx];
+  if (!sub) return;
+
+  appState.myCurrentVote = voteValue;
+  await window.gameService.castVote(appState.gameCode, sub.id, appState.playerId, voteValue);
+
+  // Mettre à jour l'affichage des boutons
+  highlightVoteButtons(voteValue);
+}
+
+function highlightVoteButtons(voteValue) {
+  const btnVoteOui = document.getElementById('btn-vote-oui');
+  const btnVoteNon = document.getElementById('btn-vote-non');
+  const statusEl = document.getElementById('player-vote-status');
+
+  if (btnVoteOui && btnVoteNon) {
+    btnVoteOui.style.transform = voteValue === 'oui' ? 'scale(1.05)' : 'scale(0.95)';
+    btnVoteOui.style.opacity = voteValue === 'non' ? '0.5' : '1';
+    btnVoteNon.style.transform = voteValue === 'non' ? 'scale(1.05)' : 'scale(0.95)';
+    btnVoteNon.style.opacity = voteValue === 'oui' ? '0.5' : '1';
+  }
+
+  if (statusEl) {
+    statusEl.innerHTML = `✅ Votre vote <strong>${voteValue.toUpperCase()}</strong> a été pris en compte !`;
+    statusEl.style.display = 'block';
+  }
+}
+
+function renderPlayerUI() {
+  const room = appState.currentRoom;
+  const panelLobby = document.getElementById('player-panel-lobby');
+  const panelSubmit = document.getElementById('player-panel-submit');
+  const panelVote = document.getElementById('player-panel-vote');
+  const panelLeaderboard = document.getElementById('player-panel-leaderboard');
+
+  if (!room) {
+    panelLobby.style.display = 'block';
+    panelSubmit.style.display = 'none';
+    panelVote.style.display = 'none';
+    panelLeaderboard.style.display = 'none';
+    return;
+  }
+
+  // 1. LOBBY
+  if (room.status === 'lobby') {
+    panelLobby.style.display = 'block';
+    panelSubmit.style.display = 'none';
+    panelVote.style.display = 'none';
+    panelLeaderboard.style.display = 'none';
+    document.getElementById('player-lobby-code').textContent = room.code;
+    return;
+  }
+
+  // 2. SOUMISSION DE POLICE
+  if (room.status === 'submitting') {
+    panelLobby.style.display = 'none';
+    panelSubmit.style.display = 'block';
+    panelVote.style.display = 'none';
+    panelLeaderboard.style.display = 'none';
+
+    // Remplir la bannière de thème et texte
+    document.getElementById('player-banner-theme').textContent = room.theme;
+    document.getElementById('player-banner-sample').textContent = room.sampleText;
+    document.getElementById('player-preview-text').textContent = room.sampleText;
+
+    // Si déjà soumis
+    const submittedCard = document.getElementById('player-already-submitted-card');
+    const formCard = document.getElementById('player-submit-form');
+    if (appState.mySubmission) {
+      submittedCard.style.display = 'block';
+      formCard.style.display = 'none';
+      document.getElementById('player-my-sub-font').textContent = appState.mySubmission.font;
+      document.getElementById('player-my-sub-title').textContent = appState.mySubmission.title;
+      const previewSubmitted = document.getElementById('player-my-sub-preview');
+      previewSubmitted.textContent = room.sampleText;
+      previewSubmitted.style.fontFamily = `'${appState.mySubmission.font}', sans-serif`;
+      window.loadGoogleFont(appState.mySubmission.font);
+    } else {
+      submittedCard.style.display = 'none';
+      formCard.style.display = 'block';
+      updatePlayerLivePreview();
+      renderFontGrid();
+    }
+    return;
+  }
+
+  // 3. VOTES EN COURS
+  if (room.status === 'presenting') {
+    panelLobby.style.display = 'none';
+    panelSubmit.style.display = 'none';
+    panelVote.style.display = 'block';
+    panelLeaderboard.style.display = 'none';
+
+    const curIdx = room.currentSubmissionIndex || 0;
+    const sub = appState.submissions[curIdx];
+
+    const titleEl = document.getElementById('player-vote-sub-title');
+    const authorEl = document.getElementById('player-vote-sub-author');
+    const fontEl = document.getElementById('player-vote-sub-font');
+    const voteArena = document.getElementById('player-voting-arena');
+    const closedMsg = document.getElementById('player-vote-closed-msg');
+
+    if (sub) {
+      titleEl.textContent = `« ${sub.title} »`;
+      authorEl.textContent = `proposé par ${sub.playerName}`;
+      fontEl.textContent = `Police : ${sub.font}`;
+
+      // Vérifier le vote déjà fait par ce joueur
+      const myVote = sub.votes ? sub.votes[appState.playerId] : null;
+      if (myVote) {
+        highlightVoteButtons(myVote);
+      } else {
+        const statusEl = document.getElementById('player-vote-status');
+        if (statusEl) statusEl.style.display = 'none';
+        const btnVoteOui = document.getElementById('btn-vote-oui');
+        const btnVoteNon = document.getElementById('btn-vote-non');
+        if (btnVoteOui && btnVoteNon) {
+          btnVoteOui.style.transform = 'none';
+          btnVoteOui.style.opacity = '1';
+          btnVoteNon.style.transform = 'none';
+          btnVoteNon.style.opacity = '1';
+        }
+      }
+
+      if (room.votingOpen) {
+        voteArena.style.display = 'grid';
+        closedMsg.style.display = 'none';
+      } else {
+        voteArena.style.display = 'none';
+        closedMsg.style.display = 'block';
+      }
+    }
+    return;
+  }
+
+  // 4. CLASSEMENT
+  if (room.status === 'leaderboard') {
+    panelLobby.style.display = 'none';
+    panelSubmit.style.display = 'none';
+    panelVote.style.display = 'none';
+    panelLeaderboard.style.display = 'block';
+    renderLeaderboardUI(panelLeaderboard, appState.submissions);
+  }
+}
+
+function updatePlayerLivePreview() {
+  const previewText = document.getElementById('player-preview-text');
+  const previewBadge = document.getElementById('player-preview-font-name');
+  if (previewText && previewBadge) {
+    window.loadGoogleFont(appState.selectedFont).then(() => {
+      previewText.style.fontFamily = `'${appState.selectedFont}', sans-serif`;
+    });
+    previewBadge.textContent = appState.selectedFont;
+  }
+}
+
+function renderFontGrid() {
+  const grid = document.getElementById('player-font-grid');
+  if (!grid || !window.FONT_CATALOG) return;
+
+  const filtered = window.FONT_CATALOG.filter(font => {
+    const matchCategory = appState.activeCategory === 'Toutes' || font.category === appState.activeCategory;
+    const matchSearch = !appState.searchTerm || font.name.toLowerCase().includes(appState.searchTerm);
+    return matchCategory && matchSearch;
+  });
+
+  grid.innerHTML = filtered.slice(0, 120).map(font => {
+    const isSelected = font.name === appState.selectedFont;
+    return `
+      <div class="font-item-card ${isSelected ? 'selected' : ''}" data-font="${escapeHtml(font.name)}">
+        <div class="font-item-sample" style="font-family:'${escapeHtml(font.name)}', sans-serif;">
+          ${escapeHtml(font.name)}
+        </div>
+        <div class="font-item-meta">
+          <span>${escapeHtml(font.category)}</span>
+          ${isSelected ? '<span>✓ Sélectionnée</span>' : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Charger les polices visibles en arrière-plan
+  filtered.slice(0, 25).forEach(f => window.loadGoogleFont(f.name));
+
+  grid.querySelectorAll('.font-item-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const fontName = card.dataset.font;
+      appState.selectedFont = fontName;
+      updatePlayerLivePreview();
+      renderFontGrid();
+    });
+  });
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Liaison bouton modal Cloud
+document.getElementById('btn-close-cloud-info').addEventListener('click', () => {
+  document.getElementById('modal-firebase').classList.remove('active');
+});
+  </script>
+</body>
+</html>
